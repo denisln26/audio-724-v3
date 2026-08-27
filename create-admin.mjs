@@ -1,79 +1,100 @@
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 
-// Baca .env.local
+// ================== KONFIGURASI AKUN ==================
+// Default sesuai permintaan. Bisa juga dioverride via argumen CLI:
+//   node create-admin.mjs <email> <password> "<nama>" <username> [role]
+const EMAIL    = process.argv[2] || 'Deni26@gmail.com';
+const PASSWORD = process.argv[3] || 'Ronaldo07@';
+const NAME     = process.argv[4] || 'deni s';
+const USERNAME = process.argv[5] || 'deni26';
+const ROLE     = process.argv[6] || 'admin';
+
+// Baca kredensial proyek dari .env.local
 const env = readFileSync('.env.local', 'utf8').split('\n').reduce((acc, line) => {
     const [key, val] = line.split('=');
     if (key && val) acc[key.trim()] = val.trim();
     return acc;
 }, {});
 
+if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
+    console.error('❌ .env.local harus berisi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY');
+    process.exit(1);
+}
 const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY);
 
-async function createAdmin() {
-    const email = 'Deni26@gmail.com';
-    const password = 'Ronaldo07@';
-    const name = 'Deni';
-
-    console.log('Membuat akun:', email);
-
-    // 1. Buat akun di Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name } }
-    });
-
-    if (authError) {
-        console.error('Gagal buat akun:', authError.message);
-        if (authError.message.includes('already registered')) {
-            console.log('Akun sudah ada, coba login...');
-            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-            if (loginError) { console.error('Login gagal:', loginError.message); return; }
-            console.log('Login berhasil! User ID:', loginData.user.id);
-            await createProfile(loginData.user.id, email, name, 'admin');
-        }
-        return;
-    }
-
-    console.log('Akun Auth dibuat! User ID:', authData.user.id);
-
-    // 2. Buat profil di tabel users
-    await createProfile(authData.user.id, email, name, 'admin');
-
-    // 3. Coba login untuk pastikan bisa
-    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginError) {
-        console.log('');
-        console.log('⚠️  Email confirmation aktif di Supabase.');
-        console.log('Nonaktifkan dulu: Authentication → Providers → Email → matikan "Confirm email"');
-        console.log('Lalu jalankan script ini lagi.');
-    } else {
-        console.log('');
-        console.log('✅ Akun berhasil dibuat dan bisa login!');
-        console.log('   Email:    Deni26@gmail.com');
-        console.log('   Password: Ronaldo07@');
-        console.log('   Role:     admin');
-    }
-}
-
-async function createProfile(userId, email, name, role) {
-    const { error } = await supabase.from('users').upsert({
+async function ensureProfile(userId) {
+    const payload = {
         id: userId,
-        email,
-        name,
-        role,
+        email: EMAIL,
+        name: NAME,
+        username: USERNAME,
+        role: ROLE,
         storage_limit: 0,
         force_change_password: false,
         created_at: new Date().toISOString()
-    }, { onConflict: 'id' });
-
+    };
+    const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
     if (error) {
-        console.error('Gagal buat profil:', error.message);
+        console.error('❌ Gagal simpan profil:', error.message);
         console.log('Pastikan tabel users sudah dibuat dari sql/schema.sql');
-    } else {
-        console.log('Profil admin dibuat di tabel users');
+        return false;
     }
+    console.log(`✅ Profil disimpan → nama:"${NAME}" | username:"${USERNAME}" | role:${ROLE}`);
+    return true;
 }
 
-createAdmin();
+async function main() {
+    console.log(`Memproses akun: ${EMAIL} (nama:"${NAME}", username:"${USERNAME}", role:${ROLE})`);
+
+    // 1. Coba daftarkan akun di Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: EMAIL,
+        password: PASSWORD,
+        options: { data: { name: NAME } }
+    });
+
+    let userId = null;
+    if (authError) {
+        const msg = authError.message || '';
+        if (/already/i.test(msg)) {
+            console.log('ℹ️ Akun sudah terdaftar → login untuk sinkronisasi profil...');
+            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+            if (loginError) {
+                console.error('❌ Login gagal:', loginError.message);
+                process.exit(1);
+            }
+            userId = loginData.user.id;
+            console.log('✅ Login berhasil! User ID:', userId);
+        } else {
+            console.error('❌ Gagal buat akun:', msg);
+            process.exit(1);
+        }
+    } else {
+        userId = authData?.user?.id;
+        console.log('✅ Akun Auth siap. User ID:', userId);
+    }
+
+    // 2. Simpan/perbarui profil di tabel users (dengan username & role)
+    if (userId) await ensureProfile(userId);
+
+    // 3. Verifikasi akhir: pastikan benar-benar bisa login
+    const { error: vErr } = await supabase.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+    if (vErr) {
+        if (/confirm/i.test(vErr.message)) {
+            console.log('');
+            console.log('⚠️  Konfirmasi email AKTIF di Supabase.');
+            console.log('   Nonaktifkan: Authentication → Providers → Email → matikan "Confirm email", lalu jalankan lagi.');
+        } else {
+            console.log('⚠️ Verifikasi login gagal:', vErr.message);
+        }
+        process.exit(1);
+    }
+    console.log('');
+    console.log('✅✅ Selesai! Login dapat memakai:');
+    console.log(`      Email    : ${EMAIL}   atau`);
+    console.log(`      Username : ${USERNAME}`);
+    console.log(`      Password : (sesuai yang Anda berikan)`);
+    console.log(`      Role     : ${ROLE} → menu Admin & semua fitur terbuka`);
+}
+main();
