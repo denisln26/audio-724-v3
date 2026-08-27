@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html class="light" lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Musik Pintar</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config={darkMode:"class",theme:{extend:{colors:{"primary":"#000","surface":"#fff","surface-variant":"#f8fafc","on-surface":"#0f172a","on-surface-variant":"#475569","background":"#fff","outline":"#cbd5e1","outline-variant":"#e2e8f0"},fontFamily:{body:["Inter","sans-serif"]},fontSize:{"display-time":["clamp(64px,9vw,124px)",{lineHeight:"1",letterSpacing:"-0.02em",fontWeight:"700"}]}}}}
+    </script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#fff;color:#0f172a}
+        .glass-card{background:#fff;border:1px solid #e2e8f0}
+        .mosque-pattern{background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5c1.1 0 2 .9 2 2v3h4v4h4v4h4v4h4v4h4v4h4v4h4v4h4v4h4v5H0v-5h4v-4h4v-4h4v-4h4v-4h4v-4h4v-4h4v-4h4V10h4V7c0-1.1.9-2 2-2zm-2 7H4v28h52V12H32v18h-4V12z' fill='%23000000' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");background-size:80px}
+        .nav-active{background:#f1f5f9!important;color:#000!important;font-weight:700;border-left:4px solid #000}
+        .page{display:none}.page.active{display:block}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+        .modal-overlay.active{display:flex}
+        .modal{background:#fff;border-radius:12px;padding:20px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
+        .player-progress{width:100%;height:3px;background:#e2e8f0;border-radius:2px;cursor:pointer;position:relative}
+        .player-progress-fill{height:100%;background:#50C878;border-radius:2px;width:0%;transition:none}
+        .track-row.playing{background:#f0fdf4!important;border-left:3px solid #50C878}
+        .track-playing-controls{display:none}
+        .track-row.playing .track-playing-controls{display:flex}
+        .player-progress-fill{height:100%;background:#50C878;border-radius:2px}
+        .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+        .toast.show{opacity:1}
+        .upload-zone{border:2px dashed #e2e8f0;border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s}
+        .upload-zone:hover,.upload-zone.dragover{border-color:#50C878;background:rgba(80,200,120,.05)}
+        input[type=range]{accent-color:#50C878}
+        button{transition:transform .08s ease,filter .08s ease;cursor:pointer}
+        button:active{transform:scale(.95);filter:brightness(.92)}
+        .nav-item:active{transform:scale(.98)}
+        .tab-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #e2e8f0;background:#fff;color:#475569}
+        .tab-btn.active{background:#000;color:#fff;border-color:#000}
+        .hijri-badge{background:linear-gradient(135deg,#1a5c3a,#2d8f5e);color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600}
+        .badge-active{background:rgba(80,200,120,.15);color:#50C878}
+        .badge-waiting{background:rgba(255,183,131,.2);color:#d97722}
+        .badge-disabled{background:#f1f5f9;color:#475569}
+        .badge-indo{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+        .prayer-card{transition:all .3s}.prayer-card.next{background:rgba(80,200,120,.08)!important;border:2px solid #50C878!important}
+        .prayer-card.next .prayer-time{color:#50C878}
+        .type-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px}
+        .type-offline{background:#e0f2fe;color:#0369a1}.type-online{background:#dcfce7;color:#15803d}
+        @media(max-width:768px){.sidebar{display:none}.main-content{margin-left:0!important}}
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface flex h-screen overflow-hidden">
+
+<!-- Side Nav -->
+<nav class="sidebar bg-white border-r border-outline-variant fixed left-0 top-0 h-full w-60 flex flex-col py-5 z-20">
+    <div class="px-5 mb-6 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-sm" style="background:#50C878" id="sidebarAvatar">DS</div>
+        <div><h2 class="text-sm font-bold" id="sidebarUserName">Admin</h2><p class="text-[11px] text-on-surface-variant" id="sidebarUserRole">Administrator</p></div>
+    </div>
+    <ul class="flex-1 overflow-y-auto space-y-0.5 px-2">
+        <li><a href="#" class="nav-item nav-active flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="dashboard"><span class="material-symbols-outlined text-[20px]">dashboard</span>Dashboard</a></li>
+        <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="library"><span class="material-symbols-outlined text-[20px]">library_music</span>Library</a></li>
+        <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="playlist"><span class="material-symbols-outlined text-[20px]">queue_music</span>Playlist</a></li>
+        <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="upacara"><span class="material-symbols-outlined text-[20px]">event_repeat</span>Upacara</a></li>
+        <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="jadwal"><span class="material-symbols-outlined text-[20px]">schedule</span>Jadwal Musik</a></li>
+        <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="sholat"><span class="material-symbols-outlined text-[20px]">mosque</span>Sholat</a></li>
+            <li><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="broadcast"><span class="material-symbols-outlined text-[20px]">cast</span>Broadcast</a></li>
+        <li id="navAdmin"><a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" data-page="admin"><span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>Admin</a></li>
+    </ul>
+    <div class="px-3 mt-auto space-y-2">
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" onclick="logout()"><span class="material-symbols-outlined text-[20px]">logout</span>Logout</a>
+        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s</p>
+    </div>
+</nav>
+
+<!-- Main -->
+<main class="main-content flex-1 ml-60 flex flex-col h-full overflow-hidden bg-surface-variant">
+    <header class="bg-white border-b border-outline-variant flex justify-between items-center w-full px-5 py-3 z-10 sticky top-0">
+        <div class="flex items-center gap-3"><h1 class="text-sm font-bold">Smart Audio Scheduler</h1>
+            <span class="px-2 py-0.5 rounded-full border border-outline-variant text-[11px] flex items-center gap-1 text-on-surface-variant" id="connectionBadge"><span class="material-symbols-outlined text-[13px]">cloud_done</span> <span id="connectionText">Online</span></span>
+        </div>
+        <div class="flex items-center gap-3 text-on-surface-variant">
+            <button class="hover:text-primary transition-colors" onclick="location.reload()"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+            <div class="text-right"><div class="text-sm font-bold" id="headerClock">--:--:--</div><div class="text-[11px]" id="headerDate">--</div></div>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-5 md:p-6 space-y-6 max-w-6xl mx-auto w-full">
+
+        <!-- LOGIN -->
+        <div id="loginPage">
+            <div class="flex items-center justify-center min-h-[60vh]">
+                <div class="glass-card rounded-2xl p-8 w-full max-w-sm">
+                    <div class="text-center mb-6">
+                        <div class="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-white" style="background:#50C878"><span class="material-symbols-outlined text-2xl">person</span></div>
+                        <h2 class="text-lg font-bold">Login</h2>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="text" class="w-full px-4 py-2.5 text-sm border border-outline-variant rounded-lg" id="loginEmail" placeholder="Email atau Username">
+                        <input type="password" class="w-full px-4 py-2.5 text-sm border border-outline-variant rounded-lg" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+                        <button class="w-full py-2.5 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="doLogin()">Masuk</button>
+                        <button class="w-full py-2 text-[11px] font-bold rounded-lg border border-outline-variant text-on-surface-variant hover:bg-gray-50" onclick="openHostScreen()">📡 Mode Host — untuk PC/layar penerima Broadcast</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- APP PAGES -->
+        <div id="appPage" style="display:none">
+
+        <!-- DASHBOARD -->
+        <div class="page" id="page-dashboard">
+            <div class="flex justify-between items-end mb-7">
+                <div><h2 class="text-2xl md:text-3xl font-bold" id="greetingText">Selamat Datang</h2><p class="text-sm md:text-base text-on-surface-variant mt-1">Ini jadwal sholat dan musik Anda hari ini.</p></div>
+                <div class="text-right hidden sm:block"><p class="text-sm md:text-base font-bold" id="dashDate">--</p><p class="mt-1 text-xs md:text-sm font-semibold" style="color:#50C878" id="hijriDate">--</p></div>
+            </div>
+            <!-- Baris Atas -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="glass-card rounded-xl lg:col-span-2 relative overflow-hidden shadow-sm">
+                    <div class="absolute inset-0 mosque-pattern z-0"></div>
+                    <div class="relative z-10 min-h-[260px] h-full p-5 md:p-6 flex flex-col">
+                        <div class="flex justify-between items-center gap-3">
+                            <h3 class="text-base md:text-lg font-bold flex items-center gap-2" style="color:#50C878"><span class="material-symbols-outlined text-[22px]">mosque</span> Sholat Berikutnya</h3>
+                            <span class="shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-outline-variant text-xs md:text-sm font-bold text-on-surface shadow-sm" id="nextPrayerBadge">--</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center py-3">
+                            <div class="display-time font-bold tabular-nums tracking-tight leading-none text-on-surface" id="countdownDisplay">--:--:--</div>
+                            <div class="mt-3 md:mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/85 backdrop-blur border border-outline-variant shadow-sm">
+                                <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style="background:#50C878"></span>
+                                <span class="text-xs md:text-sm font-semibold text-on-surface whitespace-nowrap" id="countdownLabel">hingga jam --:--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-xl p-6 flex flex-col shadow-sm">
+                    <h3 class="text-base md:text-lg font-bold flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-[20px]" id="storageIcon">cloud</span> Penyimpanan</h3>
+                    <div class="flex-1 flex items-center justify-center py-4">
+                        <div class="relative w-32 h-32 flex items-center justify-center rounded-full border-8 border-gray-100">
+                            <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100"><circle id="storageRing" cx="50" cy="50" fill="transparent" r="46" stroke="#50C878" stroke-dasharray="289" stroke-dashoffset="289" stroke-width="8" stroke-linecap="round" style="transition:stroke-dashoffset .5s,stroke .3s"></circle></svg>
+                            <div class="text-center relative z-10"><span class="material-symbols-outlined text-xl text-on-surface-variant">data_usage</span><p class="text-[11px] text-on-surface-variant font-bold mt-0.5">Terpakai</p></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-4 border-t border-outline-variant text-xs gap-2"><span class="font-bold text-on-surface whitespace-nowrap" id="storageUsedText">0 MB Terpakai</span><span class="text-on-surface-variant text-right" id="storageMaxLabel">-</span></div>
+                    <p class="mt-1.5 text-[11px] text-on-surface-variant" id="storageModeLabel">Offline • Tanpa batas kuota</p>
+                    <div class="mt-2.5 pt-2.5 border-t border-outline-variant space-y-1.5">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="flex items-center gap-1.5 text-on-surface-variant"><span class="type-icon type-offline"><span class="material-symbols-outlined" style="font-size:12px">computer</span></span>Musik Lokal (PC)</span>
+                            <span class="font-bold text-on-surface whitespace-nowrap" id="storageLocalSize">0 MB</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="flex items-center gap-1.5 text-on-surface-variant"><span class="type-icon type-online"><span class="material-symbols-outlined" style="font-size:12px">cloud</span></span>Musik Online</span>
+                            <span class="font-bold text-on-surface whitespace-nowrap" id="storageOnlineSize">0 MB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Baris Bawah -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="glass-card rounded-xl p-0 overflow-hidden relative shadow-sm">
+                    <div class="absolute inset-0 mosque-pattern z-0"></div>
+                    <div class="relative z-10 p-6 bg-white/90 backdrop-blur-sm h-full flex flex-col">
+                        <h3 class="text-base md:text-lg font-bold flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-[20px]">schedule</span> Waktu Sholat Hari Ini</h3>
+                        <div class="flex-1 space-y-0.5" id="dashPrayerTimes"></div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-xl p-6 flex flex-col shadow-sm">
+                    <div class="flex justify-between items-center mb-5"><h3 class="text-base md:text-lg font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">queue_music</span> Jadwal Musik Aktif</h3><button class="text-xs font-bold hover:underline" style="color:#50C878" onclick="showPage('jadwal')">Kelola</button></div>
+                    <div class="space-y-3 flex-1" id="activeSchedulesDash"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BROADCAST -->
+        <div class="page" id="page-broadcast">
+            <div class="flex justify-between items-end mb-5 flex-wrap gap-3">
+                <div><h2 class="text-2xl md:text-3xl font-bold flex items-center gap-2"><span class="material-symbols-outlined">cast</span>Broadcast Control</h2><p class="text-sm md:text-base text-on-surface-variant mt-1">Kontrol pemutaran media di banyak PC Host secara serentak & realtime.</p></div>
+                <button class="px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm" style="background:#50C878" onclick="openHostScreen()">📟 Buka Mode Host di PC Ini</button>
+            </div>
+            <div id="bcNoSupabase" class="glass-card rounded-xl p-6 mb-5 hidden">
+                <p class="text-sm font-bold">⚠️ Supabase belum dikonfigurasi</p>
+                <p class="text-xs text-on-surface-variant mt-1">Fitur Broadcast membutuhkan Supabase (tabel <code>broadcast_hosts</code>, <code>broadcast_commands</code>, <code>broadcast_sessions</code>). Jalankan <b>sql/schema.sql</b> di Supabase SQL Editor lalu isi <code>.env</code>.</p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-card rounded-xl p-0 overflow-hidden shadow-sm">
+                    <div class="p-5 pb-3 flex justify-between items-center flex-wrap gap-2 border-b border-outline-variant">
+                        <h3 class="text-base font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">devices</span>Daftar Host<span id="bcHostCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100">0</span></h3>
+                        <div class="flex gap-2">
+                            <button class="tab-btn" onclick="bcSelectMode('all')">Pilih Semua</button>
+                            <button class="tab-btn" onclick="bcSelectMode('none')">Kosongkan</button>
+                        </div>
+                    </div>
+                    <div class="px-5 py-3 border-b border-outline-variant flex gap-2 flex-wrap items-center bg-surface-variant">
+                        <input id="bcPairCode" maxlength="6" inputmode="numeric" autocomplete="off" placeholder="Kode 6 digit dari Mode Host" class="flex-1 min-w-[190px] px-3 py-2 text-sm border border-outline-variant rounded-lg tracking-[0.35em] uppercase">
+                        <button class="px-4 py-2 text-xs font-bold text-white rounded-lg shrink-0" style="background:#50C878" onclick="bcClaimHost()">➕ Tambah Host</button>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3" id="bcHostGrid"></div>
+                </div>
+                <div class="glass-card rounded-xl p-5 h-fit shadow-sm">
+                    <h3 class="text-base font-bold flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-[20px]">settings_remote</span>Media Control</h3>
+                    <input id="bcMediaUrl" placeholder="https://youtube.com/watch?v=…" class="w-full px-3 py-2 text-xs border border-outline-variant rounded-lg mb-2">
+                    <button class="w-full py-2 text-xs font-bold text-white rounded-lg mb-3" style="background:#000" onclick="bcLoadMedia()">⏬ Muat Media ke Host Terpilih</button>
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <button class="py-2.5 rounded-lg text-white text-xs font-bold" style="background:#50C878" onclick="bcSendCommand('play')">▶ Play</button>
+                        <button class="py-2.5 rounded-lg text-white text-xs font-bold" style="background:#f59e0b" onclick="bcSendCommand('pause')">⏸ Pause</button>
+                        <button class="py-2.5 rounded-lg text-white text-xs font-bold" style="background:#ef4444" onclick="bcSendCommand('stop')">⏹ Stop</button>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between text-xs font-bold mb-1.5"><span>Volume</span><span id="bcVolLabel">70%</span></div>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="bcVolSlider" min="0" max="100" value="70" style="flex:1;accent-color:#50C878" oninput="document.getElementById('bcVolLabel').textContent=this.value+'%'" onchange="bcVolumeChange()">
+                            <button class="text-[11px] font-bold px-2.5 py-1.5 rounded border border-outline-variant shrink-0" onclick="bcSendCommand('mute')">🔇 Mute</button>
+                        </div>
+                    </div>
+                    <button class="w-full py-2.5 text-xs font-bold rounded-lg border border-outline-variant mb-3" onclick="bcSendCommand('fullscreen')">⛶ Fullscreen</button>
+                    <p class="text-[10px] text-on-surface-variant leading-relaxed border-t border-outline-variant pt-2.5">Play dieksekusi serentak oleh semua host berdasarkan timestamp server (+2 detik toleransi). Titik hijau = Online dalam 45 detik terakhir. Update status realtime tanpa refresh.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIBRARY -->
+        <div class="page" id="page-library">
+            <h2 class="text-lg font-bold mb-3">Library Musik</h2>
+            <div class="flex gap-2 mb-3">
+                <button class="tab-btn active" onclick="switchLibTab('offline',this)">Offline (File Lokal)</button>
+                <button class="tab-btn" onclick="switchLibTab('online',this)">Online (Supabase)</button>
+            </div>
+            <div id="libTabOffline">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                    <span class="material-symbols-outlined text-3xl text-on-surface-variant">computer</span>
+                    <p class="text-sm text-on-surface-variant mt-1">Drag & drop atau klik upload musik</p>
+                    <p class="text-[11px] text-on-surface-variant">MP3, WAV, OGG &bull; Tersimpan offline</p>
+                </div>
+                <input type="file" id="fileInput" accept="audio/*" multiple style="display:none">
+            </div>
+            <div id="libTabOnline" style="display:none">
+                <div class="glass-card rounded-xl p-4">
+                    <div class="flex gap-2 flex-wrap">
+                        <button class="px-3 py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="document.getElementById('supabaseFileInput').click()"><span class="material-symbols-outlined text-sm align-middle">cloud_upload</span> Upload ke Supabase</button>
+                        <input type="file" id="supabaseFileInput" accept="audio/*" style="display:none" onchange="uploadToSupabase(this)">
+                        <input type="text" class="flex-1 min-w-[200px] px-3 py-2 text-sm border border-outline-variant rounded-lg" id="onlineUrlInput" placeholder="Atau paste URL audio">
+                        <input type="text" class="w-36 px-3 py-2 text-sm border border-outline-variant rounded-lg" id="onlineNameInput" placeholder="Nama lagu">
+                        <button class="px-3 py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="addOnlineTrack()">Tambah</button>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant mt-2" id="supabaseStatus"></p>
+                </div>
+            </div>
+            <div class="glass-card rounded-xl p-5 mt-3">
+                <div class="flex justify-between items-center mb-3 gap-2 flex-wrap"><h3 class="text-sm font-bold">Daftar Lagu (<span id="trackCount">0</span>) <span class="ml-1 align-middle whitespace-nowrap"><span class="type-icon type-offline align-middle"><span class="material-symbols-outlined" style="font-size:12px">computer</span></span> <span class="text-[10px] text-on-surface-variant font-normal align-middle">Lokal</span> <span class="type-icon type-online align-middle ml-1"><span class="material-symbols-outlined" style="font-size:12px">cloud</span></span> <span class="text-[10px] text-on-surface-variant font-normal align-middle">Online</span></span></h3><button class="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-outline-variant hover:bg-gray-50" onclick="playAllTracks()">Putar Semua</button></div>
+                <div id="trackList" class="space-y-1.5"></div>
+            </div>
+        </div>
+
+        <!-- PLAYLIST -->
+        <div class="page" id="page-playlist">
+            <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-bold">Playlist</h2><button class="text-sm font-bold px-3 py-1.5 rounded-lg text-white" style="background:#50C878" onclick="openPlaylistModal()">+ Buat Playlist</button></div>
+            <div id="playlistList" class="space-y-3"></div>
+        </div>
+
+        <!-- UPACARA -->
+        <div class="page" id="page-upacara">
+            <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-bold">Upacara</h2><button class="text-sm font-bold px-3 py-1.5 rounded-lg text-white" style="background:#50C878" onclick="openUpacaraModal()">+ Buat Upacara</button></div>
+            <div id="upacaraList" class="space-y-3"></div>
+        </div>
+
+        <!-- JADWAL MUSIK -->
+        <div class="page" id="page-jadwal">
+            <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-bold">Jadwal Musik</h2><button class="text-sm font-bold px-3 py-1.5 rounded-lg text-white" style="background:#50C878" onclick="openScheduleModal()">+ Tambah Jadwal</button></div>
+            <div class="glass-card rounded-xl p-3 mb-3 flex justify-between items-center gap-3">
+                <div><p class="text-sm font-bold">Putar Otomatis</p><p class="text-[11px] text-on-surface-variant">Jadwal musik mulai sendiri saat masuk jam terjadwal &mdash; matikan jika hanya ingin memutar manual dari Dashboard</p></div>
+                <label class="shrink-0 relative inline-flex items-center cursor-pointer"><input type="checkbox" id="autoPlayToggle" class="sr-only peer" onchange="toggleAutoPlay()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label>
+            </div>
+            <div id="scheduleList" class="space-y-3"></div>
+        </div>
+
+        <!-- SHOLAT -->
+        <div class="page" id="page-sholat">
+            <h2 class="text-lg font-bold mb-3">Jadwal Sholat</h2>
+            <!-- CARD 1: Lokasi -->
+            <div class="glass-card rounded-xl p-5 mb-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">location_on</span> Lokasi</h3>
+                    <button class="text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 text-white" style="background:#50C878" onclick="autoDetectLocation()"><span class="material-symbols-outlined text-[14px]">my_location</span> Auto Detect</button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2 items-end">
+                    <div><label class="text-[11px] text-on-surface-variant">Latitude</label><input type="number" class="w-full px-2.5 py-1.5 text-sm border border-outline-variant rounded-lg mt-0.5" id="latInput" step="0.0001"></div>
+                    <div><label class="text-[11px] text-on-surface-variant">Longitude</label><input type="number" class="w-full px-2.5 py-1.5 text-sm border border-outline-variant rounded-lg mt-0.5" id="lngInput" step="0.0001"></div>
+                </div>
+                <p class="text-[11px] text-on-surface-variant mt-2" id="locationStatus">Lokasi default: Jakarta</p>
+            </div>
+            <!-- CARD 2 & 3 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="glass-card rounded-xl p-5">
+                    <h3 class="text-sm font-bold flex items-center gap-2 mb-1"><span class="material-symbols-outlined text-[18px]">schedule</span> Jam Sholat</h3>
+                    <p class="text-[11px] text-on-surface-variant mb-3">Geser - / + untuk koreksi tiap waktu</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="prayerGrid"></div>
+                </div>
+                <div class="glass-card rounded-xl p-5">
+                    <h3 class="text-sm font-bold flex items-center gap-2 mb-3"><span class="material-symbols-outlined text-[18px]">volume_up</span> Pengaturan Adzan & Doa</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Subuh</span><select id="adzanSubuhTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="90" id="adzanSubuhVol" class="flex-1" oninput="document.getElementById('adzanSubuhVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="adzanSubuhVolVal">90%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('subuh')">Test</button></div>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Umum</span><select id="adzanUmumTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="80" id="adzanUmumVol" class="flex-1" oninput="document.getElementById('adzanUmumVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="adzanUmumVolVal">80%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('umum')">Test</button></div>
+                        </div>
+                        <div class="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50"><span class="text-xs w-24 font-bold">Doa Setelah</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="doaEnabled" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label></div>
+                        <div class="flex items-center gap-3 p-2.5 rounded-lg bg-[#eef6f0] flex-wrap"><span class="text-xs w-24 font-bold">Musik Setelah Adzan</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="playAfterAdzan" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label><span class="text-xs ml-1">Delay</span><input type="number" min="0" max="60" value="10" id="afterAdzanDelay" class="w-14 px-2 py-1 text-xs border border-outline-variant rounded" onchange="saveSettings()"><span class="text-xs">menit</span></div>
+                        <div>
+                            <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Audio Doa</span><select id="doaTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><span class="text-xs font-bold">Volume</span><input type="range" min="0" max="100" value="70" id="doaVol" class="flex-1" oninput="document.getElementById('doaVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="doaVolVal">70%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('doa')">Test</button></div>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant mt-3" id="adzanStatus"></p>
+                    <div class="mt-2 pt-2 border-t border-outline-variant">
+                        <div class="flex items-center gap-3 flex-wrap"><span class="text-xs w-24 font-bold">Indonesia Raya</span><select id="indoRayaTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
+                        <p class="text-[10px] text-on-surface-variant mt-0.5 pl-[104px]">Otomatis diputar 1 menit sebelum jadwal bercentang <b>Indonesia Raya</b>; musik lain dijeda lalu dilanjutkan 1 menit setelahnya.</p>
+                    </div>
+                    <p class="text-[10px] text-on-surface-variant mt-2">Semua audio adzan/doa dipilih dari <b>Library</b>. Pengaturan tersimpan otomatis ke database &mdash; jika lagu lokal belum ada di perangkat ini akan muncul keterangan <b>"file lokal tidak tersedia"</b>.</p>
+                </div>
+            </div>
+            <div class="mt-4"><button class="w-full py-2.5 text-sm font-bold text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait" style="background:#50C878" onclick="saveSholatSettings(this)"><span>Simpan Pengaturan Jadwal Sholat</span></button><p class="text-center text-[11px] mt-1.5 hidden" id="sholatSaveStatus"></p></div>
+        </div>
+
+        <!-- ADMIN -->
+        <div class="page" id="page-admin">
+            <h2 class="text-lg font-bold mb-3">Admin</h2>
+            <div class="glass-card rounded-xl p-5 mb-3">
+                <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold">User</h3><button class="text-[11px] font-bold px-2.5 py-1 rounded-lg text-white" style="background:#50C878" onclick="openUserModal()">+ User</button></div>
+                <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-outline-variant text-left text-[11px] text-on-surface-variant"><th class="pb-2">Nama</th><th class="pb-2">Username</th><th class="pb-2">Role</th><th class="pb-2">Storage</th><th class="pb-2">Used</th><th class="pb-2"></th></tr></thead><tbody id="userTableBody"></tbody></table></div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                <div class="glass-card rounded-xl p-4 text-center"><p class="text-xl font-bold" id="statTracks">0</p><p class="text-[11px] text-on-surface-variant">Lagu</p></div>
+                <div class="glass-card rounded-xl p-4 text-center"><p class="text-xl font-bold" id="statPlaylist">0</p><p class="text-[11px] text-on-surface-variant">Playlist</p></div>
+                <div class="glass-card rounded-xl p-4 text-center"><p class="text-xl font-bold" id="statUpacara">0</p><p class="text-[11px] text-on-surface-variant">Upacara</p></div>
+                <div class="glass-card rounded-xl p-4 text-center"><p class="text-xl font-bold" id="statSchedules">0</p><p class="text-[11px] text-on-surface-variant">Jadwal</p></div>
+            </div>
+        </div>
+
+        </div><!-- end appPage -->
+    </div>
+</main>
+
+
+<div class="toast" id="toast"></div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="playlistModal"><div class="modal">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold" id="playlistModalTitle">Buat Playlist</h3><button class="text-lg" onclick="closeModal('playlistModal')">&times;</button></div>
+    <div class="mb-3"><label class="text-xs text-on-surface-variant">Nama Playlist</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="playlistNameInput"></div>
+    <div class="mb-3"><label class="text-xs text-on-surface-variant">Pilih Lagu dari Library</label><div id="playlistTrackSelect" class="mt-1.5 space-y-1 max-h-48 overflow-y-auto"></div></div>
+    <button class="w-full py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="savePlaylist()">Simpan</button>
+</div></div>
+
+<div class="modal-overlay" id="upacaraModal"><div class="modal">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold" id="upacaraModalTitle">Buat Upacara</h3><button class="text-lg" onclick="closeModal('upacaraModal')">&times;</button></div>
+    <p class="text-[11px] text-on-surface-variant mb-3">Buat acara dulu, lalu tambahkan lagu di dalam acara tersebut.</p>
+    <div class="mb-3"><label class="text-xs text-on-surface-variant">Nama Upacara</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="upacaraName" placeholder="Contoh: Upacara Bendera"></div>
+    <button class="w-full py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="saveUpacara()">Simpan</button>
+</div></div>
+
+<div class="modal-overlay" id="upacaraTrackModal"><div class="modal">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold">Tambah Lagu ke Upacara</h3><button class="text-lg" onclick="closeModal('upacaraTrackModal')">&times;</button></div>
+    <p class="text-[11px] text-on-surface-variant mb-2">Pilih lagu dari library:</p>
+    <div id="upacaraSongPicker" class="mt-1.5 space-y-1 max-h-64 overflow-y-auto mb-3"></div>
+    <button class="w-full py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="addSongsToUpacara()">Tambah Lagu</button>
+</div></div>
+
+<div class="modal-overlay" id="scheduleModal"><div class="modal">
+    <div class="flex justify-between items-center mb-4"><h3 class="text-base font-bold" id="scheduleModalTitle">Tambah Jadwal Musik</h3><button class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-xl leading-none" onclick="closeModal('scheduleModal')">&times;</button></div>
+    <div class="space-y-4">
+        <div><label class="text-xs font-semibold text-on-surface-variant">Judul Jadwal</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="scheduleTitle" placeholder="Contoh: Jam Kantor"></div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-semibold text-on-surface-variant">Jam Mulai</label><input type="time" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="scheduleStart" value="08:00" onchange="updateScheduleDurationInfo()"></div>
+            <div><label class="text-xs font-semibold text-on-surface-variant">Jam Selesai</label><input type="time" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="scheduleEnd" value="17:00"><p class="hidden mt-1 text-[10px] text-on-surface-variant leading-snug" id="loopStopNote">✓ Musik berhenti otomatis setelah lagu/playlist selesai diputar.</p></div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant mt-1.5" id="scheduleDurationInfo"></p>
+        <div class="border-t border-outline-variant pt-3">
+            <label class="text-xs font-semibold text-on-surface-variant">Sumber Musik</label>
+            <select class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="scheduleSourceType" onchange="updateScheduleSourceUI()"><option value="single">Lagu Tunggal</option><option value="playlist">Playlist</option></select>
+            <div class="mt-2" id="scheduleSourceIdGroup"><select class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg" id="scheduleSourceId" onchange="updateScheduleDurationInfo()"></select></div>
+        </div>
+        <div class="border-t border-outline-variant pt-3">
+            <label class="text-xs font-semibold text-on-surface-variant">Volume Jadwal</label>
+            <div class="flex items-center gap-2 mt-1.5">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">volume_up</span>
+                <input type="range" min="0" max="100" value="100" id="scheduleVolume" class="flex-1" oninput="document.getElementById('scheduleVolumeVal').textContent=this.value+'%'">
+                <span class="text-xs w-9 text-right font-bold" id="scheduleVolumeVal">100%</span>
+            </div>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">Dipakai saat jadwal ini diputar otomatis maupun manual dari Dashboard.</p>
+        </div>
+        <div class="border-t border-outline-variant pt-3">
+            <label class="text-xs font-semibold text-on-surface-variant">Opsi</label>
+            <div class="flex flex-wrap gap-2 mt-2">
+                <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant cursor-pointer text-xs"><input type="checkbox" id="scheduleLoop" checked onchange="updateScheduleLoopUI()"> Loop</label>
+                <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant cursor-pointer text-xs"><input type="checkbox" id="scheduleIndoRaya"> Indonesia Raya (1 mnt sebelum)</label>
+            </div>
+        </div>
+        <div class="border-t border-outline-variant pt-3">
+            <label class="text-xs font-semibold text-on-surface-variant">Hari Aktif</label>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="1" checked class="day-check"> Sen</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="2" checked class="day-check"> Sel</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="3" checked class="day-check"> Rab</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="4" checked class="day-check"> Kam</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="5" checked class="day-check"> Jum</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="6" class="day-check"> Sab</label>
+                <label class="flex items-center gap-1 px-2.5 py-1.5 rounded border border-outline-variant cursor-pointer text-[11px]"><input type="checkbox" value="0" class="day-check"> Min</label>
+            </div>
+        </div>
+    </div>
+    <button class="w-full py-2.5 mt-5 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="saveSchedule()">Simpan Jadwal</button>
+</div></div>
+
+<div class="modal-overlay" id="userModal"><div class="modal">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold" id="userModalTitle">Tambah User</h3><button class="text-lg" onclick="closeModal('userModal')">&times;</button></div>
+    <div class="space-y-2.5">
+        <div><label class="text-xs">Nama Lengkap</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="userModalFullname" placeholder="Nama lengkap"></div>
+        <div><label class="text-xs">Username (untuk login)</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="userModalUsername" placeholder="contoh: deni26"></div>
+        <div><label class="text-xs">Password</label><input type="password" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="userModalPassword"></div>
+        <div><label class="text-xs">Role</label><select class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="userModalRole"><option value="user">User</option><option value="admin">Admin</option></select></div>
+        <div><label class="text-xs">Storage Limit Online (MB, 0=Unlimited)</label><input type="number" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="userModalStorage" value="500" min="0"></div>
+    </div>
+    <button class="w-full py-2 mt-3 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="saveUser()">Simpan</button>
+</div></div>
+
+<div class="modal-overlay" id="changePasswordModal"><div class="modal">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold">Ubah Password</h3></div>
+    <p class="text-xs text-on-surface-variant mb-3">Anda harus mengubah password sebelum melanjutkan.</p>
+    <div class="space-y-2.5">
+        <div><label class="text-xs">Password Baru</label><input type="password" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="changePasswordNew"></div>
+        <div><label class="text-xs">Konfirmasi Password Baru</label><input type="password" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="changePasswordConfirm"></div>
+    </div>
+    <button class="w-full py-2 mt-3 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="doChangePassword()">Ubah Password</button>
+</div></div>
+
+<!-- MODE HOST (overlay full-screen, tanpa login) -->
+    <div id="hostScreen" style="display:none;position:fixed;inset:0;z-index:100;background:#0b1220;color:#fff">
+        <div id="hsPlayerWrap" style="position:absolute;inset:0;display:none">
+            <div id="hsYTPlayer" style="position:absolute;inset:0"></div>
+        </div>
+        <div id="hsWaiting" class="flex flex-col items-center justify-center text-center p-6 pointer-events-none" style="position:absolute;inset:0;z-index:20">
+            <div class="flex items-center gap-2 mb-6 text-white/70"><span class="material-symbols-outlined">cast</span><span class="font-bold tracking-[0.2em] text-xs md:text-sm">MUSIK PINTAR • BROADCAST HOST</span></div>
+            <div class="rounded-3xl px-10 md:px-16 py-10 border border-white/10" style="background:rgba(255,255,255,.05)">
+                <p class="text-[10px] md:text-xs text-white/50 font-bold mb-3 tracking-widest">MASUKKAN KODE INI DI HALAMAN BROADCAST</p>
+                <div id="hsCode" class="font-bold tabular-nums" style="font-size:clamp(64px,13vw,160px);line-height:1;letter-spacing:.08em;color:#fff">······</div>
+            </div>
+            <p id="hsWaitLabel" class="mt-7 text-white/50 text-sm animate-pulse">Menunggu Admin terhubung…</p>
+            <p id="hsConnState" class="mt-2 text-white/35 text-xs"></p>
+        </div>
+        <div id="hsStatusPill" class="hidden items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-white/10 bg-black/60 backdrop-blur" style="position:absolute;top:18px;left:18px;z-index:30"></div>
+        <div class="flex justify-center gap-3 flex-wrap px-4" style="position:absolute;bottom:22px;left:0;right:0;z-index:30">
+            <button id="hsFsBtn" class="hidden px-5 py-2.5 rounded-xl text-xs font-bold border border-white/15 bg-white/10 hover:bg-white/20" onclick="hsToggleFullscreen()">⛶ Layar Penuh</button>
+            <button class="px-5 py-2.5 rounded-xl text-xs font-bold border border-white/15 bg-white/10 hover:bg-white/20" onclick="closeHostScreen()">✕ Keluar Mode Host</button>
+            <button class="px-5 py-2.5 rounded-xl text-xs font-bold border border-red-400/30 bg-red-500/20 hover:bg-red-500/40 text-red-200" onclick="resetHostDevice()">🔄 Pasang Ulang Kode Baru</button>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
