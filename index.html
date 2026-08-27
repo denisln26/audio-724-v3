@@ -47,13 +47,12 @@
         .prayer-card.next .prayer-time{color:#50C878}
         .type-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px}
         .type-offline{background:#e0f2fe;color:#0369a1}.type-online{background:#dcfce7;color:#15803d}
-        @media(max-width:768px){.sidebar{display:none}.main-content{margin-left:0!important}.mobile-nav{display:flex}.main-content .flex-1{padding-bottom:76px}}
-        /* Navigasi bawah untuk layar mobile (sidebar disembunyikan <768px) */
-        .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:90;background:#fff;border-top:1px solid #e2e8f0;padding:5px 4px calc(5px + env(safe-area-inset-bottom));overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;box-shadow:0 -2px 12px rgba(0,0,0,.06)}
-        .mobile-nav-item{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 13px;min-width:62px;border-radius:10px;color:#64748b;font-size:10px;font-weight:600;text-decoration:none}
-        .mobile-nav-item .material-symbols-outlined{font-size:23px}
-        .mobile-nav-item.active{color:#000;font-weight:700}
-        .mobile-nav-item.logout{color:#ef4444}
+        @media(max-width:768px){.main-content{margin-left:0!important}.hamburger-btn{display:inline-flex}.sidebar{z-index:110;transform:translateX(-102%);transition:transform .28s ease}.sidebar.open{transform:translateX(0);box-shadow:0 0 60px rgba(0,0,0,.35)}.sidebar-backdrop.show{opacity:1;pointer-events:auto}}
+        /* Tombol hamburger (hanya tampil di layar mobile) */
+        .hamburger-btn{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:#f1f5f9;color:#0f172a;margin-right:2px}
+        .hamburger-btn:active{transform:scale(.94)}
+        /* Backdrop gelap di belakang drawer sidebar (mobile) */
+        .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:105;opacity:0;pointer-events:none;transition:opacity .25s}
     </style>
 </head>
 <body class="bg-background font-body text-on-surface flex h-screen overflow-hidden">
@@ -83,7 +82,7 @@
 <!-- Main -->
 <main class="main-content flex-1 ml-60 flex flex-col h-full overflow-hidden bg-surface-variant">
     <header class="bg-white border-b border-outline-variant flex justify-between items-center w-full px-5 py-3 z-10 sticky top-0">
-        <div class="flex items-center gap-3"><h1 class="text-sm font-bold">Smart Audio Scheduler</h1>
+        <div class="flex items-center gap-3"><button class="hamburger-btn" title="Menu" onclick="toggleMobileMenu(true)"><span class="material-symbols-outlined text-[22px]">menu</span></button><h1 class="text-sm font-bold">Smart Audio Scheduler</h1>
             <span class="px-2 py-0.5 rounded-full border border-outline-variant text-[11px] flex items-center gap-1 text-on-surface-variant" id="connectionBadge"><span class="material-symbols-outlined text-[13px]">cloud_done</span> <span id="connectionText">Online</span></span>
         </div>
         <div class="flex items-center gap-3 text-on-surface-variant">
@@ -349,18 +348,8 @@
     </div>
 </main>
 
-<!-- Navigasi bawah (mobile) - sidebar disembunyikan di layar <768px -->
-<nav class="mobile-nav" id="mobileNav">
-    <a href="#" class="mobile-nav-item" data-page="dashboard"><span class="material-symbols-outlined">dashboard</span><span>Dashboard</span></a>
-    <a href="#" class="mobile-nav-item" data-page="sholat"><span class="material-symbols-outlined">mosque</span><span>Sholat</span></a>
-    <a href="#" class="mobile-nav-item" data-page="library"><span class="material-symbols-outlined">library_music</span><span>Library</span></a>
-    <a href="#" class="mobile-nav-item" data-page="playlist"><span class="material-symbols-outlined">queue_music</span><span>Playlist</span></a>
-    <a href="#" class="mobile-nav-item" data-page="upacara"><span class="material-symbols-outlined">event_repeat</span><span>Upacara</span></a>
-    <a href="#" class="mobile-nav-item" data-page="jadwal"><span class="material-symbols-outlined">schedule</span><span>Jadwal</span></a>
-    <a href="#" class="mobile-nav-item" data-page="broadcast"><span class="material-symbols-outlined">cast</span><span>Broadcast</span></a>
-    <a href="#" class="mobile-nav-item" data-page="admin" id="mobileNavAdmin"><span class="material-symbols-outlined">admin_panel_settings</span><span>Admin</span></a>
-    <a href="#" class="mobile-nav-item logout" onclick="logout()"><span class="material-symbols-outlined">logout</span><span>Keluar</span></a>
-</nav>
+<!-- Backdrop untuk drawer sidebar (mobile) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileMenu(false)"></div>
 
 
 <div class="toast" id="toast"></div>

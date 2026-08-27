@@ -108,7 +108,6 @@ function onLoginSuccess(){
     $('appPage').style.display='';
     document.querySelector('.sidebar').style.display='';
     document.querySelector('.main-content header').style.display='';
-    const mn=$('mobileNav');if(mn)mn.style.display='';
     updateUI();
     syncData().then(()=>{
         loadSettingsUI();renderTracks();renderPlaylists();renderUpacaras();renderSchedules();renderPrayerGrid();renderDashboard();
@@ -127,7 +126,6 @@ async function logout(){
     $('loginPage').style.display='';
     document.querySelector('.sidebar').style.display='none';
     document.querySelector('.main-content header').style.display='none';
-    const mn=$('mobileNav');if(mn)mn.style.display='none';
     audio.pause();isPlaying=false;
 }
 window.logout=logout;
@@ -138,7 +136,6 @@ function updateUI(){
     $('sidebarUserRole').textContent=currentUser.role==='admin'?'Administrator':'User';
     $('sidebarAvatar').textContent=(currentUser.name||currentUser.email||'U').substring(0,2).toUpperCase();
     $('navAdmin').style.display=currentUser.role==='admin'?'':'none';
-    const mnAdmin=$('mobileNavAdmin');if(mnAdmin)mnAdmin.style.display=currentUser.role==='admin'?'':'none';
 }
 
 // ========== DATA SYNC ==========
@@ -293,10 +290,8 @@ function updateShuffleRepeatBtn(){
 function showPage(page){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('nav-active'));
-    document.querySelectorAll('.mobile-nav-item[data-page]').forEach(n=>n.classList.remove('active'));
     const el=$('page-'+page);if(el)el.classList.add('active');
     const nav=document.querySelector(`.nav-item[data-page="${page}"]`);if(nav)nav.classList.add('nav-active');
-    const mnav=document.querySelector(`.mobile-nav-item[data-page="${page}"]`);if(mnav)mnav.classList.add('active');
     if(page==='library')renderTracks();
     if(page==='playlist')renderPlaylists();
     if(page==='upacara'){activeUpacaraId=null;renderUpacaras();}
@@ -304,10 +299,18 @@ function showPage(page){
     if(page==='sholat')renderPrayerGrid();
     if(page==='admin')renderAdmin();
     if(page==='dashboard')renderDashboard();
+    toggleMobileMenu(false); // tutup drawer di mobile setelah pindah halaman
 }
 window.showPage=showPage;
 document.querySelectorAll('.nav-item').forEach(item=>{item.addEventListener('click',e=>{e.preventDefault();showPage(item.getAttribute('data-page'))})});
-document.querySelectorAll('.mobile-nav-item[data-page]').forEach(item=>{item.addEventListener('click',e=>{e.preventDefault();showPage(item.getAttribute('data-page'))})});
+// ========== MENU MOBILE (hamburger -> drawer sidebar) ==========
+window.toggleMobileMenu=open=>{
+    const sb=document.querySelector('.sidebar'),bd=$('sidebarBackdrop');
+    if(!sb)return;
+    const willOpen=typeof open==='boolean'?open:!sb.classList.contains('open');
+    sb.classList.toggle('open',willOpen);
+    if(bd)bd.classList.toggle('show',willOpen);
+};
 
 // ========== CLOCK ==========
 function updateClock(){
@@ -1316,7 +1319,6 @@ if(savedUser){
 }else{
     document.querySelector('.sidebar').style.display='none';
     document.querySelector('.main-content header').style.display='none';
-    const mn=$('mobileNav');if(mn)mn.style.display='none';
 }
 // Deteksi boot silent (dipicu auto-refresh tengah malam) agar refresh tidak membunyikan musik.
 // Flag ditulis ke localStorage sesaat sebelum location.reload(), lalu dibaca di sini.
