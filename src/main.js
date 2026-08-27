@@ -11,6 +11,8 @@ let adzanPlayedToday={};
 let prayerTimes={}, editingId=null, editingType='';
 let activeScheduleId=null, manualPauseKey=null, activeScheduleVolumePct=100;
 let isIndoRayaActive=false;
+let irAudio=null,irAudioUrl=null,irResumeTimer=null,irCooldownUntil=0;
+let manualOverrideUntil=0;
 let _dashTick=0;
 const audio=new Audio();
 const DAY_NAMES=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
@@ -309,6 +311,7 @@ function updateClock(){
     const ct=$('connectionText');if(ct)ct.textContent=navigator.onLine?'Online':'Offline';
     const cb=$('connectionBadge');if(cb){const ic=cb.querySelector('.material-symbols-outlined');if(ic)ic.textContent=navigator.onLine?'cloud_done':'cloud_off';}
     checkAutoPlay(now);
+    enforceScheduleWindows(now);
     checkPrayerTime(now);
     checkIndoRaya(now);
     updateCountdown(now);
@@ -419,7 +422,7 @@ const IR_DONE_KEY='indoRayaDone';
 function isIrDone(id){const d=new Date().toDateString();const m=LS.get(IR_DONE_KEY,null);return!!(m&&m._d===d&&Array.isArray(m.l)&&m.l.includes(id))}
 function markIrDone(id){const d=new Date().toDateString();let m=LS.get(IR_DONE_KEY,null);if(m&&m._d===d&&Array.isArray(m.l)){if(!m.l.includes(id))m.l.push(id)}else m={_d:d,l:[id]};LS.set(IR_DONE_KEY,m)}
 function checkIndoRaya(now){
-    if(isIndoRayaActive)return;
+    if(isIndoRayaActive||Date.now()<irCooldownUntil)return;
     const td=now.getDay(),sod=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
     for(const s of schedules){
         if(!s.enabled||!s.indonesia_raya||!s.days.includes(td))continue;
@@ -431,29 +434,74 @@ function checkIndoRaya(now){
     }
 }
 async function triggerIndonesiaRaya(s){
-    markIrDone(s.id);
-    const r=await resolveIndoRaya();
-    if(r.status==='none'){toast('Pilih lagu Indonesia Raya di Pengaturan Adzan & Doa');return}
-    if(!r.src){toast('File lokal tidak tersedia (Indonesia Raya)');updateAdzanStatus();return}
-    // JEDA semua musik (posisi diingat agar bisa dilanjutkan)
-    const hadPlayback=isPlaying;
-    if(hadPlayback){pausedPosition=audio.currentTime;audio.pause();isPlaying=false}
-    isIndoRayaActive=true;
-    updatePlayPauseBtn();
-    toast('Indonesia Raya');
-    const a=new Audio(r.src);
-    a.volume=settings.volume/100;
-    a.onended=()=>{
-        isIndoRayaActive=false;
-        updatePlayPauseBtn();
-        // Lanjutkan OTOMATIS 1 menit setelah Indonesia Raya selesai
-        setTimeout(()=>{
-            if(hadPlayback&&currentPlaylist.length>0&&currentPlaylistIndex>=0&&!isPlaying&&!isPrayerTime){resumePlaying();toast('Melanjutkan musik')}
-            else if(!hadPlayback&&autoPlayEnabled)checkAutoPlay(new Date());
-        },60000);
-    };
-    a.onerror=()=>{isIndoRayaActive=false;updatePlayPauseBtn()};
-    a.play().catch(()=>{isIndoRayaActive=false;updatePlayPauseBtn()});
+    if(isIndoRayaActive)return;
+    isIndoRayaActive=true;updatePlayPauseBtn();
+    try{
+        const r=await resolveIndoRaya();
+        // gagal → buka kunci lagi + cooldown 20 dtk agar bisa dicoba ulang dalam jendela yang sama
+        const fail=msg=>{isIndoRayaActive=false;updatePlayPauseBtn();irCooldownUntil=Date.now()+20000;toast(msg)};
+        if(r.status==='none'){fail('Pilih lagu Indonesia Raya di Pengaturan Adzan & Doa');return}
+        if(!r.src){updateAdzanStatus();fail('File lokal tidak tersedia (Indonesia Raya)');return}
+        const hadPlayback=isPlaying;
+        if(hadPlayback){pausedPosition=audio.currentTime;audio.pause();isPlaying=false}
+        updatePlayPauseBtn();toast('Indonesia Raya');
+        // matikan pemutar IR sebelumnya (anti dobel audio & anti GC)
+        if(irAudio){try{irAudio.onended=irAudio.onerror=null;irAudio.pause()}catch(e){}}
+        if(irAudioUrl&&/^blob:/.test(irAudioUrl)){try{URL.revokeObjectURL(irAudioUrl)}catch(e){}}
+        irAudioUrl=r.src;
+        const a=new Audio(r.src);irAudio=a;
+        a.volume=settings.volume/100;
+        let done=false;
+        const finish=()=>{
+            if(done)return;done=true;irAudio=null;
+            isIndoRayaActive=false;updatePlayPauseBtn();
+            scheduleIrResume(hadPlayback);
+        };
+        a.onended=finish;a.onerror=finish;
+        try{
+            await a.play();
+            markIrDone(s.id);           // tandai selesai HANYA setelah benar-benar mulai bunyi
+            toast('🇮🇩 Indonesia Raya diputar');
+        }catch(err){
+            finish();
+            toast('Gagal memutar Indonesia Raya');
+        }
+    }catch(e){isIndoRayaActive=false;updatePlayPauseBtn()}
+}
+// Lanjut OTOMATIS tepat +60 detik pasca-Indonesia Raya.
+// Bila pada momen itu sedang jam hening sholat, diulang tiap 10 detik (maks 6 menit).
+function scheduleIrResume(hadPlayback){
+    if(irResumeTimer)clearInterval(irResumeTimer);
+    const openAt=Date.now()+60000,deadline=Date.now()+360000;
+    irResumeTimer=setInterval(()=>{
+        if(Date.now()>deadline||isPlaying){clearInterval(irResumeTimer);irResumeTimer=null;return}
+        if(Date.now()<openAt)return;
+        if(isPrayerTime||Date.now()<silencedUntil)return;
+        clearInterval(irResumeTimer);irResumeTimer=null;
+        if(hadPlayback&&currentPlaylist.length>0&&currentPlaylistIndex>=0){resumePlaying();toast('Melanjutkan musik')}
+        else if(!hadPlayback&&autoPlayEnabled&&!isPlaying)checkAutoPlay(new Date());
+    },10000);
+}
+// ========== PENGAMAN BATAS JADWAL ==========
+// Musik milik jadwal yang melewati window-nya dimatikan otomatis:
+//   Loop ON    -> berhenti TEPAT pukul "Jam Selesai"
+//   Tanpa loop -> tetap berhenti ketika durasi musik habis (perilaku lama)
+// Playlist yg dimainkan MANUAL oleh pengguna tidak diganggu selama 2 jam
+// sejak sentuhan manual terakhir (manualOverrideUntil).
+function enforceScheduleWindows(now){
+    if(!isPlaying||isIndoRayaActive||!activeScheduleId)return;
+    if(manualOverrideUntil&&Date.now()<manualOverrideUntil)return;
+    const s=schedules.find(x=>x.id===activeScheduleId);
+    if(!s)return;
+    const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
+    const win=scheduleWindow(s);
+    if(s.enabled&&s.days.includes(td)&&nm>=win.sM&&nm<win.eM)return;
+    const title=s.title||'Jadwal';
+    pausedPosition=0;audio.pause();isPlaying=false;
+    activeScheduleId=null;loopPlaylist=false;stopAfterPlaylist=false;
+    currentPlaylist=[];currentPlaylistIndex=-1;
+    updatePlayPauseBtn();renderTracks();renderUpacaras();
+    toast('⏰ Jam selesai — "'+title+'" dihentikan otomatis');
 }
 
 function updateAdzanStatus(){
@@ -676,9 +724,9 @@ function setTrackVol(i,v){tracks[i].volume=parseInt(v);saveLocal();renderTracks(
 window.setTrackVol=setTrackVol;
 async function removeTrack(i){if(!confirm('Hapus?'))return;const t=tracks[i];if(t.type==='offline'){try{await deleteBlob(t.id)}catch(e){}}if(isSupabaseConfigured()){await getSupabase().from('tracks').delete().eq('id',t.id)}tracks.splice(i,1);saveLocal();renderTracks();toast('Dihapus')}
 window.removeTrack=removeTrack;
-function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
+function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
 window.playTrack=playTrack;
-function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
+function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
 window.playAllTracks=playAllTracks;
 
 // ========== PLAYER ==========
@@ -699,6 +747,7 @@ function resumePlaying(){
     updatePlayPauseBtn();renderTracks();renderUpacaras();
 }
 function togglePlayPause(){
+    manualOverrideUntil=Date.now()+7200000;
     if(isPlaying){
         audio.pause();isPlaying=false;pausedPosition=audio.currentTime;
         manualPauseKey=new Date().toDateString()+'|'+(activeScheduleId||'-');
@@ -767,7 +816,7 @@ function renderPlaylists(){
         return`<div class="glass-card rounded-xl p-4"><div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">${p.name}</h3><span class="text-[11px] text-on-surface-variant">${p.track_ids.length} lagu</span></div><p class="text-[11px] text-on-surface-variant mb-2 truncate">${tn}</p><div class="flex gap-1.5"><button class="text-[11px] font-bold px-2.5 py-1 rounded text-white" style="background:#50C878" onclick="playPlaylist('${p.id}')">Putar</button><button class="text-[11px] px-2.5 py-1 rounded border border-outline-variant" onclick="openPlaylistModal('${p.id}')">Edit</button><button class="text-[11px] px-2.5 py-1 rounded border border-red-300 text-red-500" onclick="removePlaylist('${p.id}')">Hapus</button></div></div>`;
     }).join('');
 }
-function playPlaylist(id){const p=playlists.find(p=>p.id===id);if(!p)return;const plTracks=p.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false);if(!plTracks.length){toast('Kosong / file lokal tidak tersedia');return}stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=settings.shuffle?[...plTracks].sort(()=>Math.random()-.5):[...plTracks];currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+p.name)}
+function playPlaylist(id){const p=playlists.find(p=>p.id===id);if(!p)return;const plTracks=p.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false);if(!plTracks.length){toast('Kosong / file lokal tidak tersedia');return}stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...plTracks].sort(()=>Math.random()-.5):[...plTracks];currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+p.name)}
 window.playPlaylist=playPlaylist;
 async function removePlaylist(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('playlists').delete().eq('id',id);playlists=playlists.filter(p=>p.id!==id);saveLocal();renderPlaylists();toast('Dihapus')}
 window.removePlaylist=removePlaylist;
@@ -884,7 +933,7 @@ function renderUpacaras(){
     }).join('');
 }
 window.renderUpacaras=renderUpacaras;
-function playUpacara(id){const u=upacaras.find(u=>u.id===id);if(!u)return;const ut=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);if(!ut.length){toast('Kosong, tambah lagu dulu');return}stopAfterPlaylist=true;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=ut;currentPlaylistIndex=0;pausedPosition=0;loadAndPlay();toast('Putar (1x): '+u.name)}
+function playUpacara(id){const u=upacaras.find(u=>u.id===id);if(!u)return;const ut=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);if(!ut.length){toast('Kosong, tambah lagu dulu');return}stopAfterPlaylist=true;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=ut;currentPlaylistIndex=0;pausedPosition=0;loadAndPlay();toast('Putar (1x): '+u.name)}
 window.playUpacara=playUpacara;
 async function removeUpacara(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('upacaras').delete().eq('id',id);upacaras=upacaras.filter(u=>u.id!==id);if(activeUpacaraId===id)activeUpacaraId=null;saveLocal();renderUpacaras();toast('Dihapus')}
 window.removeUpacara=removeUpacara;
@@ -1199,6 +1248,7 @@ function playScheduleNow(id){
     sourceTracks=sourceTracks.filter(x=>x.type==='online'||x._localAvailable!==false);
     if(!sourceTracks.length){toast('File lokal tidak tersedia / daftar kosong');return}
     stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
+    manualOverrideUntil=Date.now()+7200000;
     currentPlaylist=settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):[...sourceTracks];
     currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+s.title);
 }
