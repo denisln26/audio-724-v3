@@ -75,7 +75,7 @@
     </ul>
     <div class="px-3 mt-auto space-y-2">
         <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" onclick="logout()"><span class="material-symbols-outlined text-[20px]">logout</span>Logout</a>
-        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.2</p>
+        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.3</p>
     </div>
 </nav>
 
@@ -248,6 +248,16 @@
                         <button class="px-3 py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="addOnlineTrack()">Tambah</button>
                     </div>
                     <p class="text-[11px] text-on-surface-variant mt-2" id="supabaseStatus"></p>
+                </div>
+                <div class="glass-card rounded-xl p-4 mt-3">
+                    <div class="flex items-center gap-1.5 mb-2"><span class="material-symbols-outlined text-[16px]" style="color:#4285F4">file_copy</span><span class="text-xs font-bold text-on-surface-variant">Google Drive (berbagi untuk semua user)</span></div>
+                    <div class="flex gap-2 flex-wrap">
+                        <input type="text" class="flex-1 min-w-[180px] px-3 py-2 text-sm border border-outline-variant rounded-lg" id="gdriveNameInput" placeholder="Judul lagu">
+                        <input type="text" class="flex-1 min-w-[220px] px-3 py-2 text-sm border border-outline-variant rounded-lg" id="gdriveLinkInput" placeholder="Link share Google Drive">
+                        <button class="px-3 py-2 text-sm font-bold text-white rounded-lg" style="background:#4285F4" onclick="addGDriveTrack()">Tambah</button>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant mt-1.5">Tempel link berbagi (siapa pun dengan link), file audio tidak memakai kuota Supabase.</p>
+                    <label class="flex w-max items-center gap-1.5 mt-2 text-[11px] text-on-surface-variant cursor-pointer"><span class="type-icon type-online" style="background:#4285F4;color:#fff"><span class="material-symbols-outlined" style="font-size:12px">drive_file_move</span></span> Google Drive</label>
                 </div>
             </div>
             <div class="glass-card rounded-xl p-5 mt-3">

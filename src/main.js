@@ -146,7 +146,7 @@ async function syncData(){
             const sb=getSupabase();
             const uid=currentUser.id;
             const [t,p,u,s]=await Promise.all([
-                sb.from('tracks').select('*').eq('owner',uid),
+                sb.from('tracks').select('*').or(`owner.eq.${uid},type.eq.gdrive`),
                 sb.from('playlists').select('*').eq('owner',uid),
                 sb.from('upacaras').select('*').eq('owner',uid),
                 sb.from('schedules').select('*').eq('owner',uid)
@@ -636,6 +636,35 @@ async function uploadToSupabase(input){
 window.uploadToSupabase=uploadToSupabase;
 function addOnlineTrack(){const url=$('onlineUrlInput').value.trim();const name=$('onlineNameInput').value.trim()||'Online Track';if(!url){toast('Masukkan URL');return}const track={id:genId(),name,src:url,type:'online',duration:0,size:'Online',owner:currentUser.id};if(isSupabaseConfigured())getSupabase().from('tracks').upsert(track);tracks.unshift(track);saveLocal();renderTracks();$('onlineUrlInput').value='';$('onlineNameInput').value='';toast('Ditambahkan');ensureTrackDurations()}
 window.addOnlineTrack=addOnlineTrack;
+// Konversi link share Google Drive menjadi URL file langsung untuk streaming audio
+function convertGDriveToDirect(link){
+    if(!link)return'';
+    link=link.trim();
+    let id='';
+    // Format: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    let m=link.match(/\/file\/d\/([^/?#]+)/);
+    if(m)id=m[1];
+    // Format: https://drive.google.com/open?id=FILE_ID atau uc?id=FILE_ID
+    if(!id){m=link.match(/[?&]id=([^&#]+)/);if(m)id=m[1]}
+    // Format: https://drive.google.com/drive/folders/... (tidak didukung file langsung)
+    if(!id)return'';
+    return 'https://drive.google.com/uc?export=download&id='+id;
+}
+window.convertGDriveToDirect=convertGDriveToDirect;
+// Tambah track dari Google Drive (dibagikan untuk SEMUA user & admin)
+function addGDriveTrack(){
+    const name=$('gdriveNameInput').value.trim();const link=$('gdriveLinkInput').value.trim();
+    if(!name){toast('Masukkan judul lagu');return}
+    if(!link){toast('Masukkan link share Google Drive');return}
+    const src=convertGDriveToDirect(link);
+    if(!src){toast('Link Google Drive tidak valid');return}
+    const track={id:genId(),name,src,type:'gdrive',duration:0,size:'GDrive',owner:'shared'};
+    if(isSupabaseConfigured())getSupabase().from('tracks').upsert(track);
+    tracks.unshift(track);saveLocal();renderTracks();
+    $('gdriveNameInput').value='';$('gdriveLinkInput').value='';
+    toast('Lagu Google Drive ditambahkan');ensureTrackDurations();
+}
+window.addGDriveTrack=addGDriveTrack;
 
 // ========== OFFLINE FILE UPLOAD ==========
 const fileInput=$('fileInput'),uploadZone=$('uploadZone');
@@ -678,10 +707,10 @@ let _durEnsuring=false;
 async function ensureTrackDurations(){
     if(_durEnsuring)return;_durEnsuring=true;
     try{
-        const need=tracks.filter(t=>!(t.duration>0)&&(t.type==='online'?!!t.src:t._localAvailable!==false));
+        const need=tracks.filter(t=>!(t.duration>0)&&((t.type==='online'||t.type==='gdrive')?!!t.src:t._localAvailable!==false));
         for(const t of need){
             let src=t.src;
-            if(t.type!=='online'){
+            if(t.type!=='online'&&t.type!=='gdrive'){
                 let b=null;try{b=await getBlob(t.id)}catch(e){}
                 if(!b)continue;
                 src=URL.createObjectURL(b);
@@ -698,14 +727,14 @@ async function ensureTrackDurations(){
 }
 
 // ========== RENDER TRACKS =========
-function getUserTracks(){if(!currentUser)return[];if(currentUser.role==='admin')return tracks;return tracks.filter(t=>t.owner===currentUser.id)}
+function getUserTracks(){if(!currentUser)return[];if(currentUser.role==='admin')return tracks;return tracks.filter(t=>t.owner===currentUser.id||t.type==='gdrive')}
 function renderTracks(){
     const list=$('trackList');const ut=getUserTracks();$('trackCount').textContent=ut.length;
     if(!ut.length){list.innerHTML='<div class="text-center py-6 text-on-surface-variant"><span class="material-symbols-outlined text-3xl block mb-1">music_note</span><p class="text-xs">Belum ada lagu</p></div>';return}
     list.innerHTML=ut.map((t,i)=>{
         const gi=tracks.indexOf(t);
         const playing=currentPlaylist.length&&currentPlaylist[currentPlaylistIndex]?.id===t.id;
-        const icon=t.type==='offline'?'<span class="type-icon type-offline"><span class="material-symbols-outlined" style="font-size:12px">computer</span></span>':'<span class="type-icon type-online"><span class="material-symbols-outlined" style="font-size:12px">cloud</span></span>';
+        const icon=t.type==='offline'?'<span class="type-icon type-offline"><span class="material-symbols-outlined" style="font-size:12px">computer</span></span>':(t.type==='gdrive'?'<span class="type-icon type-online" style="background:#4285F4;color:#fff"><span class="material-symbols-outlined" style="font-size:12px">drive_file_move</span></span>':'<span class="type-icon type-online"><span class="material-symbols-outlined" style="font-size:12px">cloud</span></span>');
         if(playing){
             return`<div class="track-item track-row playing flex flex-col gap-1.5 p-2.5 rounded-lg bg-green-50 border-l-3 border-green-500" id="playingTrack">
                 <div class="flex items-center gap-2.5">
