@@ -14,6 +14,10 @@ let isIndoRayaActive=false;
 let irAudio=null,irAudioUrl=null,irResumeTimer=null,irCooldownUntil=0;
 let manualOverrideUntil=0;
 let _dashTick=0;
+// Boot silent: saat auto-refresh tengah malam, jangan auto-putar musik selama beberapa detik agar refresh tidak membunyikan apa pun
+let _bootSilent=false,_bootTime=Date.now();
+// Bacaan auto-play YouTube host hanya aktif saat perintah 'play' (bukan saat 'load'), agar tidak auto-putar sebelum admin menekan Play
+let _hsWantPlay=false;
 const audio=new Audio();
 const DAY_NAMES=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
 const PRAYER_NAMES=['Imsak','Subuh','Terbit','Dzuhur','Ashar','Maghrib','Isya'];
@@ -104,6 +108,7 @@ function onLoginSuccess(){
     $('appPage').style.display='';
     document.querySelector('.sidebar').style.display='';
     document.querySelector('.main-content header').style.display='';
+    const mn=$('mobileNav');if(mn)mn.style.display='';
     updateUI();
     syncData().then(()=>{
         loadSettingsUI();renderTracks();renderPlaylists();renderUpacaras();renderSchedules();renderPrayerGrid();renderDashboard();
@@ -122,6 +127,7 @@ async function logout(){
     $('loginPage').style.display='';
     document.querySelector('.sidebar').style.display='none';
     document.querySelector('.main-content header').style.display='none';
+    const mn=$('mobileNav');if(mn)mn.style.display='none';
     audio.pause();isPlaying=false;
 }
 window.logout=logout;
@@ -132,6 +138,7 @@ function updateUI(){
     $('sidebarUserRole').textContent=currentUser.role==='admin'?'Administrator':'User';
     $('sidebarAvatar').textContent=(currentUser.name||currentUser.email||'U').substring(0,2).toUpperCase();
     $('navAdmin').style.display=currentUser.role==='admin'?'':'none';
+    const mnAdmin=$('mobileNavAdmin');if(mnAdmin)mnAdmin.style.display=currentUser.role==='admin'?'':'none';
 }
 
 // ========== DATA SYNC ==========
@@ -286,8 +293,10 @@ function updateShuffleRepeatBtn(){
 function showPage(page){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('nav-active'));
+    document.querySelectorAll('.mobile-nav-item[data-page]').forEach(n=>n.classList.remove('active'));
     const el=$('page-'+page);if(el)el.classList.add('active');
-    const nav=document.querySelector(`[data-page="${page}"]`);if(nav)nav.classList.add('nav-active');
+    const nav=document.querySelector(`.nav-item[data-page="${page}"]`);if(nav)nav.classList.add('nav-active');
+    const mnav=document.querySelector(`.mobile-nav-item[data-page="${page}"]`);if(mnav)mnav.classList.add('active');
     if(page==='library')renderTracks();
     if(page==='playlist')renderPlaylists();
     if(page==='upacara'){activeUpacaraId=null;renderUpacaras();}
@@ -298,6 +307,7 @@ function showPage(page){
 }
 window.showPage=showPage;
 document.querySelectorAll('.nav-item').forEach(item=>{item.addEventListener('click',e=>{e.preventDefault();showPage(item.getAttribute('data-page'))})});
+document.querySelectorAll('.mobile-nav-item[data-page]').forEach(item=>{item.addEventListener('click',e=>{e.preventDefault();showPage(item.getAttribute('data-page'))})});
 
 // ========== CLOCK ==========
 function updateClock(){
@@ -1086,6 +1096,8 @@ function scheduleWindow(s){
 }
 const schedPauseKey=s=>new Date().toDateString()+'|'+(s?.id||'-');
 function checkAutoPlay(now){
+    // Boot silent (auto-refresh tengah malam): jangan auto-putar musik beberapa detik agar refresh tidak membunyikan apa pun
+    if(_bootSilent&&Date.now()-_bootTime<30000)return;
     if(!autoPlayEnabled||isPrayerTime||Date.now()<silencedUntil||isIndoRayaActive)return;
     const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
     for(const s of schedules){
@@ -1304,7 +1316,25 @@ if(savedUser){
 }else{
     document.querySelector('.sidebar').style.display='none';
     document.querySelector('.main-content header').style.display='none';
+    const mn=$('mobileNav');if(mn)mn.style.display='none';
 }
+// Deteksi boot silent (dipicu auto-refresh tengah malam) agar refresh tidak membunyikan musik.
+// Flag ditulis ke localStorage sesaat sebelum location.reload(), lalu dibaca di sini.
+try{
+    const _st=parseInt(localStorage.getItem('mp_silentReload')||'0',10);
+    localStorage.removeItem('mp_silentReload');
+    _bootSilent=!!_st&&(Date.now()-_st)<20000;
+}catch(e){_bootSilent=false}
+// Auto-refresh halaman TEPAT jam 00:00 setiap hari (reset harian adzan, dll.)
+(function scheduleMidnightRefresh(){
+    const now=new Date();
+    const next=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,1,0); // 00:00:01
+    if(next.getTime()<=now.getTime())next.setDate(next.getDate()+1);
+    setTimeout(()=>{
+        try{localStorage.setItem('mp_silentReload',String(Date.now()))}catch(e){}
+        location.reload();
+    },Math.max(next.getTime()-now.getTime(),1000));
+})();
 setInterval(updateClock,1000);updateClock();
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('active')}));
 const today=new Date().toDateString();if(LS.get('adzanDay','')!==today){adzanPlayedToday={};LS.set('adzanDay',today);LS.set('adzanPlayed',adzanPlayedToday)}
@@ -1588,6 +1618,7 @@ async function hsExec(c){
     const cmd=c.command;
     if(cmd==='load'){
         HS.curType=c.media_type;HS.curUrl=c.media_url;
+        _hsWantPlay=false;               // 'load' TIDAK otomatis putar; tunggu perintah 'play'
         loadYouTubeAPI().catch(()=>{});           // preload API
         hsPatchRow({media_type:c.media_type,media_url:c.media_url});
         if(c.start_at){/* load via play dengan start_at */}
@@ -1606,6 +1637,7 @@ async function hsExec(c){
     if(cmd==='fullscreen'){hsEnterFs();return}
     if(cmd==='play'){
         if(!HS.curUrl){$('hsConnState').textContent='Belum ada media dimuat oleh Admin.';return}
+        _hsWantPlay=true;                // otomatis play saat menerima perintah 'play'
         let delay=0;
         try{if(c.start_at){const sn=await bcServerNow();delay=new Date(c.start_at).getTime()-sn}}catch(e){}
         delay>60?setTimeout(hsPlay,delay):hsPlay();
@@ -1632,21 +1664,35 @@ async function hsPlay(){
         const vid=HS.curType==='youtube'?hsYTof(HS.curUrl):null;
         const pv={autoplay:1,controls:0,disablekb:1,rel:0,playsinline:1,fs:0,modestbranding:1};
         if(listId){pv.listType='playlist';pv.list=listId}
+        // Auto-play yang andal: jalankan playVideo saat video siap (CUED) DAN saat siap diputar,
+        // agar video TIDAK tertahan di state pause (harus klik manual).
         const go=()=>{try{hsApplyVolYT();HS.player.playVideo()}catch(e){}};
+        const onState=e=>{
+            try{
+                if(e.data===5&&_hsWantPlay){HS.player.playVideo();}        // CUED -> otomatis main
+                else if(e.data===3&&_hsWantPlay){HS.player.playVideo();}   // BUFFERING -> pastikan main
+                if(e.data===1)hsMarkStatus('playing');
+                else if(e.data===0)hsMarkStatus('stopped');
+                else if(e.data===2)hsMarkStatus('paused');
+            }catch(err){}
+            hsUpdatePill();
+        };
         try{
             if(!HS.player||!HS.player.getPlayerState){
                 HS.player=new YT.Player('hsYTPlayer',{width:'100%',height:'100%',playerVars:pv,
                     videoId:listId?undefined:vid,
                     events:{
-                        onReady:go,
-                        onStateChange:e=>{if(e.data===0)hsMarkStatus('stopped');hsUpdatePill()},
+                        onReady:()=>{try{hsApplyVolYT()}catch(e){};onState({data:5});go()},
+                        onStateChange:onState,
                         onError:()=>{hsMarkStatus('stopped');$('hsConnState').textContent='Gagal memutar video (private/regional?)'}
                     }});
-                return; // onReady memanggil go()
+                return; // onReady & onStateChange yang menjalankan auto-play
             }
             if(listId)HS.player.loadPlaylist({list:listId,listType:'playlist'});
             else{const v2=vid||HS.playingVid;if(v2)HS.player.loadVideoById(v2)}
+            onState({data:5});
             setTimeout(go,250);
+            setTimeout(go,1200);   // retry bila video butuh waktu lebih lama untuk siap
         }catch(e){setTimeout(go,250)}
         HS.playingVid=vid;
     }else{ // drive preview / url video langsung

@@ -47,7 +47,13 @@
         .prayer-card.next .prayer-time{color:#50C878}
         .type-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px}
         .type-offline{background:#e0f2fe;color:#0369a1}.type-online{background:#dcfce7;color:#15803d}
-        @media(max-width:768px){.sidebar{display:none}.main-content{margin-left:0!important}}
+        @media(max-width:768px){.sidebar{display:none}.main-content{margin-left:0!important}.mobile-nav{display:flex}.main-content .flex-1{padding-bottom:76px}}
+        /* Navigasi bawah untuk layar mobile (sidebar disembunyikan <768px) */
+        .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:90;background:#fff;border-top:1px solid #e2e8f0;padding:5px 4px calc(5px + env(safe-area-inset-bottom));overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+        .mobile-nav-item{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 13px;min-width:62px;border-radius:10px;color:#64748b;font-size:10px;font-weight:600;text-decoration:none}
+        .mobile-nav-item .material-symbols-outlined{font-size:23px}
+        .mobile-nav-item.active{color:#000;font-weight:700}
+        .mobile-nav-item.logout{color:#ef4444}
     </style>
 </head>
 <body class="bg-background font-body text-on-surface flex h-screen overflow-hidden">
@@ -70,7 +76,7 @@
     </ul>
     <div class="px-3 mt-auto space-y-2">
         <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" onclick="logout()"><span class="material-symbols-outlined text-[20px]">logout</span>Logout</a>
-        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.1</p>
+        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.2</p>
     </div>
 </nav>
 
@@ -342,6 +348,19 @@
         </div><!-- end appPage -->
     </div>
 </main>
+
+<!-- Navigasi bawah (mobile) - sidebar disembunyikan di layar <768px -->
+<nav class="mobile-nav" id="mobileNav">
+    <a href="#" class="mobile-nav-item" data-page="dashboard"><span class="material-symbols-outlined">dashboard</span><span>Dashboard</span></a>
+    <a href="#" class="mobile-nav-item" data-page="sholat"><span class="material-symbols-outlined">mosque</span><span>Sholat</span></a>
+    <a href="#" class="mobile-nav-item" data-page="library"><span class="material-symbols-outlined">library_music</span><span>Library</span></a>
+    <a href="#" class="mobile-nav-item" data-page="playlist"><span class="material-symbols-outlined">queue_music</span><span>Playlist</span></a>
+    <a href="#" class="mobile-nav-item" data-page="upacara"><span class="material-symbols-outlined">event_repeat</span><span>Upacara</span></a>
+    <a href="#" class="mobile-nav-item" data-page="jadwal"><span class="material-symbols-outlined">schedule</span><span>Jadwal</span></a>
+    <a href="#" class="mobile-nav-item" data-page="broadcast"><span class="material-symbols-outlined">cast</span><span>Broadcast</span></a>
+    <a href="#" class="mobile-nav-item" data-page="admin" id="mobileNavAdmin"><span class="material-symbols-outlined">admin_panel_settings</span><span>Admin</span></a>
+    <a href="#" class="mobile-nav-item logout" onclick="logout()"><span class="material-symbols-outlined">logout</span><span>Keluar</span></a>
+</nav>
 
 
 <div class="toast" id="toast"></div>
