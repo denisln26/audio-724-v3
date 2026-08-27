@@ -1,7 +1,7 @@
 {
   "name": "musik-pintar",
-  "version": "2.0.0",
-  "description": "Smart Audio Scheduler - Musik Pintar v2.0 PWA",
+  "version": "3.1.0",
+  "description": "Smart Audio Scheduler - Musik Pintar v3.1 PWA",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

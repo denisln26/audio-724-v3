@@ -530,11 +530,12 @@ window.previewAdzan=previewAdzan;
 
 // ========== PRAYER CHECK (5 MENIT SEBELUM ADZAN) ==========
 function checkPrayerTime(now){
-    const nm=now.getHours()*60+now.getMinutes(),ns=now.getSeconds();
+    const nm=now.getHours()*60+now.getMinutes();
     for(const[n,time]of Object.entries(prayerTimes)){
+        if(n==='Imsak'||n==='Terbit')continue;
         const[hh,mm]=time.split(':').map(Number);const pM=hh*60+mm;
         if(nm>=pM-5&&nm<pM+15){
-            if(nm===pM&&ns<2){const k=n+'_'+now.toDateString();if(!adzanPlayedToday[k]){adzanPlayedToday[k]=true;LS.set('adzanPlayed',adzanPlayedToday);playAdzanForPrayer(n)}}
+            if(nm===pM){const k=n+'_'+now.toDateString();if(!adzanPlayedToday[k]){adzanPlayedToday[k]=true;LS.set('adzanPlayed',adzanPlayedToday);playAdzanForPrayer(n)}}
             isPrayerTime=true;
             if(isPlaying&&nm>=pM-5){
                 pausedPosition=audio.currentTime;audio.pause();isPlaying=false;updatePlayPauseBtn();toast('Musik berhenti untuk sholat');
@@ -569,8 +570,20 @@ function playAdzanForPrayer(name){
     resolveAdzan(kind).then(r=>{
         if(r.status==='localMissing'){toast('File lokal tidak tersedia ('+(name==='Subuh'?'Adzan Subuh':'Adzan')+')');return}
         if(r.status!=='ok'||!r.src)return;
-        const a=new Audio(r.src);a.volume=(name==='Subuh'?settings.adzanSubuhVolume:settings.adzanUmumVolume)/100;a.play();toast('Adzan '+name);
-        a.onended=()=>{if(settings.doaEnabled){resolveAdzanSrc('doa').then(ds=>{if(ds){setTimeout(()=>{const d=new Audio(ds);d.volume=settings.doaVolume/100;d.play();toast('Doa setelah adzan')},2000)}})}};
+        const a=new Audio(r.src);
+        a.volume=(name==='Subuh'?settings.adzanSubuhVolume:settings.adzanUmumVolume)/100;
+        a.onended=()=>{
+            if(!settings.doaEnabled)return;
+            resolveAdzanSrc('doa').then(ds=>{
+                if(!ds)return;
+                setTimeout(()=>{
+                    const d=new Audio(ds);d.volume=settings.doaVolume/100;
+                    d.play().catch(()=>{});toast('Doa setelah adzan');
+                },2000);
+            });
+        };
+        a.play().catch(()=>toast('Adzan '+name+' gagal diputar (browser memblokir suara otomatis)'));
+        toast('Adzan '+name);
     });
 }
 
@@ -778,7 +791,8 @@ window.seekTrack=seekTrack;
 function setMasterVolume(v){settings.volume=parseInt(v);if(currentPlaylist[currentPlaylistIndex])audio.volume=(currentPlaylist[currentPlaylistIndex].volume||100)/100*(v/100);saveLocal()}
 window.setMasterVolume=setMasterVolume;
 audio.ontimeupdate=()=>{if(audio.duration){const pf=$('playerProgressFill');if(pf)pf.style.width=(audio.currentTime/audio.duration*100)+'%';const pc=$('playingTime');if(pc)pc.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const dpf=$('dashPlayerFill');if(dpf)dpf.style.width=(audio.currentTime/audio.duration*100)+'%';const dpt=$('dashPlayerTime');if(dpt)dpt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration)}const dptr=$('dashPlayerTrack');if(dptr){const cur=currentPlaylist[currentPlaylistIndex];if(cur&&dptr.textContent!==cur.name)dptr.textContent=cur.name}};
-audio.onended=()=>nextTrack();
+// Lanjutkan otomatis ke lagu berikutnya ketika satu lagu selesai diputar (library/playlist/jadwal)
+audio.onended=()=>{if(isIndoRayaActive||isPrayerTime)return;nextTrack()};
 
 // ========== PLAYLIST ==========
 function openPlaylistModal(id){
