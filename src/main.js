@@ -386,7 +386,7 @@ function updateCountdown(now){
     for(const[n,time]of Object.entries(prayerTimes)){const[hh,mm]=time.split(':').map(Number);const p=hh*3600+mm*60;if(p>nowSec&&p<nextSec){nextSec=p;nextN=n}}
     if(nextSec===Infinity)nextSec=24*3600;
     const d=nextSec-nowSec;
-    const cd=$('countdownDisplay');if(cd)cd.textContent=`${Math.floor(d/3600)}j ${Math.floor((d%3600)/60)}m ${d%60}s`;
+    const cd=$('countdownDisplay');if(cd)cd.textContent=`${String(Math.floor(d/3600)).padStart(2,'0')}:${String(Math.floor((d%3600)/60)).padStart(2,'0')}:${String(d%60).padStart(2,'0')}`;
     const cl=$('countdownLabel');if(cl)cl.textContent=`hingga ${nextN} jam ${prayerTimes[nextN]||'--:--'}`;
     const nb=$('nextPrayerBadge');if(nb)nb.textContent=nextN||'--';
 }
@@ -812,7 +812,7 @@ async function removeTrack(i){if(!confirm('Hapus?'))return;const t=tracks[i];if(
 window.removeTrack=removeTrack;
 function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
 window.playTrack=playTrack;
-function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
+function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
 window.playAllTracks=playAllTracks;
 
 // ========== PLAYER ==========
@@ -1265,6 +1265,7 @@ window.removeUser=removeUser;
 function clearAllData(){if(!confirm('Hapus SEMUA data?'))return;tracks=[];playlists=[];upacaras=[];schedules=[];saveLocal();audio.pause();isPlaying=false;currentPlaylist=[];renderTracks();renderPlaylists();renderUpacaras();renderSchedules();renderDashboard();toast('Semua data dihapus')}
 window.clearAllData=clearAllData;
 
+function nextScheduleStartMin(s,now=new Date()){const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();for(let d=0;d<7;d++){const cd=(td+d)%7;if(s.days.includes(cd)){const[sh,sm]=s.start_time.split(':').map(Number);const startMin=sh*60+sm;if(d===0){if(startMin>nm)return startMin-nm}else return(24*60-nm)+(d-1)*24*60+startMin}}return Infinity}
 // ========== DASHBOARD ==========
 const RING_LEN=289; // keliling lingkaran r=46 (2*PI*46≈289)
 function setStorageRing(ratio,color){
@@ -1315,8 +1316,8 @@ function renderDashboard(){
         if(s.source_type==='playlist'){const p=playlists.find(p=>p.id===s.source_id);return p?'Playlist: '+p.name:'Playlist'}
         const u=upacaras.find(u=>u.id===s.source_id);return u?'Upacara: '+u.name:'Upacara';
     };
-    if(!as.length){c.innerHTML='<div class="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-outline-variant rounded-lg text-on-surface-variant opacity-60"><span class="material-symbols-outlined mb-2">add_task</span><p class="text-xs">Tidak ada jadwal musik aktif</p></div>';return}
-    c.innerHTML=as.map(s=>{
+    if(!as.length){c.innerHTML='<div class="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-outline-variant rounded-lg text-on-surface-variant opacity-60"><span class="material-symbols-outlined mb-2">add_task</span><p class="text-xs">Tidak ada jadwal musik aktif</p></div>';}
+    else{c.innerHTML=as.map(s=>{
         const playing=isPlaying&&activeScheduleId===s.id;
         const vol=typeof s.volume==='number'?s.volume:100;
         const vIcon=vol==0?'volume_off':(vol<50?'volume_down':'volume_up');
@@ -1326,8 +1327,16 @@ function renderDashboard(){
             const pct=(ct&&audio.duration)?(audio.currentTime/audio.duration*100):0;
             mini=`<div class="mt-3"><div class="flex justify-between items-center gap-2 mb-1.5"><span class="text-[10px] font-medium text-on-surface truncate" id="dashPlayerTrack">${ct?ct.name:''}</span><span class="text-[10px] text-on-surface-variant shrink-0 tabular-nums" id="dashPlayerTime">${formatTime(audio.currentTime||0)} / ${formatTime(audio.duration||0)}</span></div><div class="player-progress" style="height:5px" onclick="event.stopPropagation();seekDash(event)"><div class="player-progress-fill" id="dashPlayerFill" style="width:${pct.toFixed(1)}%"></div></div></div>`;
         }
-        return`<div class="group rounded-lg border transition-colors p-4 ${playing?'border-green-400 bg-green-50/40':'bg-white border-outline-variant hover:border-black'}"><div class="flex items-center justify-between gap-3"><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-on-surface-variant group-hover:text-black transition-colors shrink-0"><span class="material-symbols-outlined">music_note</span></div><div class="min-w-0"><p class="font-bold text-sm text-on-surface truncate">${s.title}${s.loop?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-900 text-white align-middle">LOOP</span>':' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-on-surface-variant align-middle">1X</span>'}${s.indonesia_raya?' <span class="badge-indo text-[9px] font-bold px-1 py-0.5 rounded align-middle">INDONESIA RAYA</span>':''}</p><p class="text-[11px] text-on-surface-variant truncate mt-0.5">${srcLabel(s)}</p></div></div><div class="flex items-center gap-3 shrink-0"><button onclick="toggleSchedulePlay('${s.id}')" title="${playing?'Jeda':'Putar'}" class="w-9 h-9 rounded-full text-white flex items-center justify-center hover:scale-105 transition-transform" style="background:#50C878"><span class="material-symbols-outlined text-sm" data-sched-icon="${s.id}">${playing?'pause':'play_arrow'}</span></button><div class="text-right leading-tight"><p class="font-bold text-sm text-on-surface">${s.start_time}</p><p class="text-[10px] text-on-surface-variant whitespace-nowrap">${s.loop!==false?('s.d. '+s.end_time):'musik selesai'}</p></div></div></div>${mini}<div class="${mini?'mt-2.5':'mt-3'} flex items-center gap-2"><span class="material-symbols-outlined text-[15px] text-on-surface-variant">${vIcon}</span><input type="range" min="0" max="100" value="${vol}" class="flex-1" onchange="setScheduleVolume('${s.id}',this.value)" onclick="event.stopPropagation()"><span class="text-[10px] w-8 text-right font-bold text-on-surface-variant shrink-0">${vol}%</span></div></div>`;
-    }).join('');
+        return`<div class="group rounded-lg border transition-colors p-4 ${playing?'border-green-400 bg-green-50/40':'bg-white border-outline-variant hover:border-black'}"><div class="flex items-center justify-between gap-3"><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-on-surface-variant group-hover:text-black transition-colors shrink-0"><span class="material-symbols-outlined">music_note</span></div><div class="min-w-0"><p class="font-bold text-sm text-on-surface truncate">${s.title}${s.loop?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-900 text-white align-middle">LOOP</span>':' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-on-surface-variant align-middle">1X</span>'}${s.indonesia_raya?' <span class="badge-indo text-[9px] font-bold px-1 py-0.5 rounded align-middle">INDONESIA RAYA</span>':''}</p><p class="text-[11px] text-on-surface-variant truncate mt-0.5">${srcLabel(s)}</p></div></div><div class="flex items-center gap-3 shrink-0"><button onclick="toggleSchedulePlay('${s.id}')" title="${playing?'Jeda':'Putar'}" class="w-9 h-9 rounded-full text-white flex items-center justify-center hover:scale-105 transition-transform" style="background:#50C878"><span class="material-symbols-outlined text-sm" data-sched-icon="${s.id}">${playing?'pause':'play_arrow'}</span></button><div class="text-right leading-tight"><p class="font-bold text-sm text-on-surface">${s.start_time}</p><p class="text-[10px] text-on-surface-variant whitespace-nowrap">${s.loop!==false?('s.d. '+s.end_time):'musik selesai'}</p></div></div></div>${mini}<div class="${mini?'mt-2.5':'mt-3'} flex items-center gap-2"><span class="material-symbols-outlined text-[15px] text-on-surface-variant">${vIcon}</span><input type="range" min="0" max="100" value="${vol}" class="flex-1" onchange="setScheduleVolume('${s.id}',this.value)" oninput="this.nextElementSibling.textContent=this.value+'%'" onclick="event.stopPropagation()"><span class="text-[10px] w-8 text-right font-bold text-on-surface-variant shrink-0">${vol}%</span></div></div>`;
+    }).join('');}
+    // Next 2 upcoming schedules
+    const upcoming=schedules.filter(s=>s.enabled&&!isActive(s)).map(s=>({s,min:nextScheduleStartMin(s,now)})).filter(x=>x.min>0&&x.min<Infinity).sort((a,b)=>a.min-b.min).slice(0,2);
+    if(upcoming.length){
+        let uh='<div class="mt-3 pt-3 border-t border-outline-variant"><p class="text-[10px] font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">Akan Datang</p>';
+        uh+=upcoming.map(x=>{const s=x.s,vol=typeof s.volume==='number'?s.volume:100,vIcon=vol==0?'volume_off':(vol<50?'volume_down':'volume_up'),hh=Math.floor(x.min/60),mm=x.min%60;return `<div class="rounded-lg border border-outline-variant bg-white p-3 flex items-center justify-between"><div class="flex items-center gap-2.5 min-w-0"><div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-on-surface-variant shrink-0"><span class="material-symbols-outlined text-sm">music_note</span></div><div class="min-w-0"><p class="font-bold text-sm text-on-surface truncate">${s.title}</p><p class="text-[10px] text-on-surface-variant truncate">${hh}j ${mm}m lagi</p></div></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[13px] text-on-surface-variant">${vIcon}</span><span class="text-[10px] font-bold text-on-surface-variant">${vol}%</span></div></div>`}).join('');
+        uh+='</div>';
+        c.innerHTML+=uh;
+    }
 }
 function playScheduleNow(id){
     const s=schedules.find(x=>x.id===id);if(!s)return;
