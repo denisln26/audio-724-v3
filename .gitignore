@@ -15,3 +15,12 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Script bantu lokal (sekali pakai, bukan bagian aplikasi)
+*.cmd
+check_oninput.cjs
+fix_oninput.cjs
+patch.cjs

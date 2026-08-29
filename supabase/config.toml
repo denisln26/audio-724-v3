@@ -1,0 +1,3 @@
+project_id = "ppwfvmixnzgecamruwyv"
+[functions.gdrive-proxy]
+verify_jwt = false

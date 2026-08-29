@@ -166,6 +166,7 @@ async function syncData(){
             if(dbSettings&&Object.keys(dbSettings).length)settings={...settings,...dbSettings};
         }catch(e){console.error('Settings load error:',e)}
         for(const t of tracks){
+            if(t.type==='gdrive'){t.src=normalizeGdrive(t.src);continue}
             if(t.type==='offline'){
                 t.src='';
                 const b=await getBlob(t.id);
@@ -180,7 +181,7 @@ async function syncData(){
         playlists=LS.get('playlists_'+currentUser.id,[]);
         upacaras=LS.get('upacaras_'+currentUser.id,[]);
         schedules=LS.get('schedules_'+currentUser.id,[]);
-        for(const t of tracks){if(t.type==='offline'&&(!t.src||t.src==='')){const b=await getBlob(t.id);if(b){t.src=URL.createObjectURL(b);t._localAvailable=true}else{t._localAvailable=false}}}
+        for(const t of tracks){if(t.type==='gdrive'){t.src=normalizeGdrive(t.src)}else if(t.type==='offline'&&(!t.src||t.src==='')){const b=await getBlob(t.id);if(b){t.src=URL.createObjectURL(b);t._localAvailable=true}else{t._localAvailable=false}}}
         settings=LS.get('settings_'+currentUser.id,settings);
         await updateAdzanAvailability();
         ensureTrackDurations();
@@ -667,30 +668,64 @@ async function uploadToSupabase(input){
 window.uploadToSupabase=uploadToSupabase;
 function addOnlineTrack(){const url=$('onlineUrlInput').value.trim();const name=$('onlineNameInput').value.trim()||'Online Track';if(!url){toast('Masukkan URL');return}const track={id:genId(),name,src:url,type:'online',duration:0,size:'Online',owner:currentUser.id};if(isSupabaseConfigured())getSupabase().from('tracks').upsert(track);tracks.unshift(track);saveLocal();renderTracks();$('onlineUrlInput').value='';$('onlineNameInput').value='';toast('Ditambahkan');ensureTrackDurations()}
 window.addOnlineTrack=addOnlineTrack;
-// Konversi link share Google Drive menjadi URL file langsung untuk streaming audio
-function convertGDriveToDirect(link){
+// ========== GOOGLE DRIVE (via Supabase Edge Function 'gdrive-proxy') ==========
+// Google memblokir pemutaran file GDrive langsung di tag <audio> (cross-origin).
+// Karena itu file diunduh dari sisi server lalu di-streaming lewat Edge Function:
+//   `${SUPABASE_URL}/functions/v1/gdrive-proxy?id=<FILE_ID>`
+const gdriveProxyBase=()=>{const u=(import.meta.env&&import.meta.env.VITE_SUPABASE_URL)||'';return u?u.replace(/\/$/,'')+'/functions/v1/gdrive-proxy':''};
+// Ekstrak FILE_ID dari sembarang link/URL Google Drive
+function extractGDriveId(link){
     if(!link)return'';
     link=link.trim();
     let id='';
-    // Format: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
     let m=link.match(/\/file\/d\/([^/?#]+)/);
     if(m)id=m[1];
-    // Format: https://drive.google.com/open?id=FILE_ID atau uc?id=FILE_ID
     if(!id){m=link.match(/[?&]id=([^&#]+)/);if(m)id=m[1]}
-    // Format: https://drive.google.com/drive/folders/... (tidak didukung file langsung)
+    if(!id){m=link.match(/\/d\/([^/?#]+)/);if(m)id=m[1]}
+    return id;
+}
+function gdriveProxyUrl(id){
+    const base=gdriveProxyBase();
+    return base?(base+'?id='+encodeURIComponent(id)):'';
+}
+// Konversi link share Google Drive menjadi URL streaming (lewat Edge Function)
+function convertGDriveToDirect(link){
+    const id=extractGDriveId(link);
     if(!id)return'';
-    return 'https://drive.google.com/uc?export=download&id='+id;
+    return gdriveProxyUrl(id);
 }
 window.convertGDriveToDirect=convertGDriveToDirect;
+// Normalisasi src gdrive LAWAS (yg masih tersimpan sbg URL drive.google.com/uc?export=download...)
+// menjadi URL proxy agar tetap bisa diputar setelah fitur ini diterapkan.
+function normalizeGdrive(src){
+    if(!src)return src;
+    if(src.indexOf('functions/v1/gdrive-proxy')>=0)return src;
+    const id=extractGDriveId(src);
+    if(!id)return src;
+    const p=gdriveProxyUrl(id);
+    return p||src;
+}
+window.normalizeGdrive=normalizeGdrive;
 // Tambah track dari Google Drive (dibagikan untuk SEMUA user & admin)
-function addGDriveTrack(){
+async function addGDriveTrack(){
     const name=$('gdriveNameInput').value.trim();const link=$('gdriveLinkInput').value.trim();
     if(!name){toast('Masukkan judul lagu');return}
     if(!link){toast('Masukkan link share Google Drive');return}
     const src=convertGDriveToDirect(link);
     if(!src){toast('Link Google Drive tidak valid');return}
+    if(!gdriveProxyBase()){toast('Supabase belum dikonfigurasi (proxy GDrive tidak tersedia)');return}
     const track={id:genId(),name,src,type:'gdrive',duration:0,size:'GDrive',owner:'shared'};
-    if(isSupabaseConfigured())getSupabase().from('tracks').upsert(track);
+    // Simpan dahulu ke database agar tidak hilang saat refresh; baru tampilkan bila berhasil
+    if(isSupabaseConfigured()){
+        try{
+            const {error}=await getSupabase().from('tracks').upsert(track);
+            if(error)throw error;
+        }catch(e){
+            toast('Gagal simpan ke database: '+e.message);
+            console.error('GDrive save error:',e);
+            return;
+        }
+    }
     tracks.unshift(track);saveLocal();renderTracks();
     $('gdriveNameInput').value='';$('gdriveLinkInput').value='';
     toast('Lagu Google Drive ditambahkan');ensureTrackDurations();
@@ -819,7 +854,7 @@ window.playAllTracks=playAllTracks;
 function loadAndPlay(resumePos){
     if(currentPlaylistIndex<0||currentPlaylistIndex>=currentPlaylist.length)return;
     const t=currentPlaylist[currentPlaylistIndex];
-    audio.src=t.src;audio.volume=(activeScheduleVolumePct/100)*(t.volume||100)/100*(settings.volume/100);
+    audio.src=normalizeGdrive(t.src);audio.volume=(activeScheduleVolumePct/100)*(t.volume||100)/100*(settings.volume/100);
     audio.onloadedmetadata=()=>{if(resumePos&&resumePos>0&&resumePos<audio.duration){audio.currentTime=resumePos}const cur=currentPlaylist[currentPlaylistIndex];if(cur&&!(cur.duration>0)&&audio.duration>0){cur.duration=audio.duration;if(isSupabaseConfigured()){try{getSupabase().from('tracks').update({duration:cur.duration}).eq('id',cur.id)}catch(e){}}}};
     audio.play().catch(()=>{});isPlaying=true;
     updatePlayPauseBtn();renderTracks();renderUpacaras();
@@ -827,7 +862,7 @@ function loadAndPlay(resumePos){
 function resumePlaying(){
     if(currentPlaylistIndex<0||currentPlaylistIndex>=currentPlaylist.length)return;
     const t=currentPlaylist[currentPlaylistIndex];
-    audio.src=t.src;audio.volume=(activeScheduleVolumePct/100)*(t.volume||100)/100*(settings.volume/100);
+    audio.src=normalizeGdrive(t.src);audio.volume=(activeScheduleVolumePct/100)*(t.volume||100)/100*(settings.volume/100);
     audio.onloadedmetadata=()=>{if(pausedPosition>0&&pausedPosition<audio.duration){audio.currentTime=pausedPosition}};
     audio.play().catch(()=>{});isPlaying=true;
     updatePlayPauseBtn();renderTracks();renderUpacaras();
