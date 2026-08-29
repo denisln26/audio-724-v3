@@ -6,7 +6,7 @@ const HIJRI_M=['Muharram','Safar','Rabiul Awal','Rabiul Akhir','Jumadil Awal','J
 
 // ========== STATE ==========
 let currentUser=null, tracks=[], playlists=[], upacaras=[], schedules=[];
-let currentPlaylist=[], currentPlaylistIndex=-1, isPlaying=false, isPrayerTime=false, autoPlayEnabled=false, pausedPosition=0, stopAfterPlaylist=false, loopPlaylist=false, silencedUntil=0;
+let currentPlaylist=[], currentPlaylistIndex=-1, isPlaying=false, isPrayerTime=false, autoPlayEnabled=false, pausedPosition=0, stopAfterPlaylist=false, loopPlaylist=false, stopAfterCurrentSong=false, silencedUntil=0;
 let adzanPlayedToday={};
 let prayerTimes={}, editingId=null, editingType='';
 let activeScheduleId=null, manualPauseKey=null, activeScheduleVolumePct=100;
@@ -543,7 +543,7 @@ function enforceScheduleWindows(now){
     if(s.enabled&&s.days.includes(td)&&nm>=win.sM&&nm<win.eM)return;
     const title=s.title||'Jadwal';
     pausedPosition=0;audio.pause();isPlaying=false;
-    activeScheduleId=null;loopPlaylist=false;stopAfterPlaylist=false;
+    activeScheduleId=null;loopPlaylist=false;stopAfterPlaylist=false;stopAfterCurrentSong=false;
     currentPlaylist=[];currentPlaylistIndex=-1;
     updatePlayPauseBtn();renderTracks();renderUpacaras();
     toast('⏰ Jam selesai — "'+title+'" dihentikan otomatis');
@@ -868,9 +868,9 @@ async function removeTrack(i){
     tracks.splice(i,1);saveLocal();renderTracks();toast('Dihapus');
 }
 window.removeTrack=removeTrack;
-function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
+function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
 window.playTrack=playTrack;
-function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
+function playAllTracks(){const ut=getUserTracks().filter(x=>x._localAvailable!==false);if(!ut.length)return;isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...ut].sort(()=>Math.random()-.5):[...ut];currentPlaylistIndex=0;loadAndPlay()}
 window.playAllTracks=playAllTracks;
 
 // ========== PLAYER ==========
@@ -908,7 +908,7 @@ function updatePlayPauseBtn(){
     document.querySelectorAll('[data-sched-icon]').forEach(el=>{el.textContent=(isPlaying&&activeScheduleId===el.getAttribute('data-sched-icon'))?'pause':'play_arrow'});
     renderUpacaras();
 }
-function nextTrack(){if(currentPlaylistIndex<currentPlaylist.length-1){currentPlaylistIndex++;pausedPosition=0;loadAndPlay()}else if(settings.repeat||loopPlaylist){currentPlaylistIndex=0;pausedPosition=0;loadAndPlay()}else{isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;updatePlayPauseBtn();renderUpacaras()}}
+function nextTrack(){if(currentPlaylistIndex<currentPlaylist.length-1){if(stopAfterCurrentSong){isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras();return}currentPlaylistIndex++;pausedPosition=0;loadAndPlay()}else if(settings.repeat||loopPlaylist){currentPlaylistIndex=0;pausedPosition=0;loadAndPlay()}else{isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras()}}
 window.nextTrack=nextTrack;
 function prevTrack(){if(audio.currentTime>3){audio.currentTime=0;return}if(currentPlaylistIndex>0){currentPlaylistIndex--;pausedPosition=0;loadAndPlay()}}
 window.prevTrack=prevTrack;
@@ -921,7 +921,7 @@ function seekTrack(e){
 window.seekTrack=seekTrack;
 function setMasterVolume(v){settings.volume=parseInt(v);if(currentPlaylist[currentPlaylistIndex])audio.volume=(currentPlaylist[currentPlaylistIndex].volume||100)/100*(v/100);saveLocal()}
 window.setMasterVolume=setMasterVolume;
-audio.ontimeupdate=()=>{if(audio.duration){const pf=$('playerProgressFill');if(pf)pf.style.width=(audio.currentTime/audio.duration*100)+'%';const pc=$('playingTime');if(pc)pc.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const dpf=$('dashPlayerFill');if(dpf)dpf.style.width=(audio.currentTime/audio.duration*100)+'%';const dpt=$('dashPlayerTime');if(dpt)dpt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration)}const dptr=$('dashPlayerTrack');if(dptr){const cur=currentPlaylist[currentPlaylistIndex];if(cur&&dptr.textContent!==cur.name)dptr.textContent=cur.name}};
+audio.ontimeupdate=()=>{if(audio.duration){const pf=$('playerProgressFill');if(pf)pf.style.width=(audio.currentTime/audio.duration*100)+'%';const pc=$('playingTime');if(pc)pc.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const dpf=$('dashPlayerFill');if(dpf)dpf.style.width=(audio.currentTime/audio.duration*100)+'%';    const dpt=$('dashPlayerTime');if(dpt)dpt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const upf=$('upProgressFill');if(upf)upf.style.width=(audio.currentTime/audio.duration*100)+'%';const upt=$('upPlayingTime');if(upt)upt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const upn=$('upTrackName');if(upn){const c=currentPlaylist[currentPlaylistIndex];if(c)upn.textContent=c.name}const upi=$('upPlayPauseIcon');if(upi)upi.textContent=isPlaying?'pause':'play_arrow'}const dptr=$('dashPlayerTrack');if(dptr){const cur=currentPlaylist[currentPlaylistIndex];if(cur&&dptr.textContent!==cur.name)dptr.textContent=cur.name}};
 // Lanjutkan otomatis ke lagu berikutnya ketika satu lagu selesai diputar (playlist/jadwal).
 // Khusus pemutaran dari Library (playTrack/playAllTracks): cukup BERHENTI, tidak lanjut ke lagu berikutnya.
 audio.onended=()=>{if(isIndoRayaActive||isPrayerTime)return;if(isLibraryPlaying){isLibraryPlaying=false;audio.currentTime=0;pausedPosition=0;isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;manualOverrideUntil=0;updatePlayPauseBtn();renderTracks();renderUpacaras();return}nextTrack()};
@@ -962,7 +962,7 @@ function renderPlaylists(){
         return`<div class="glass-card rounded-xl p-4"><div class="flex justify-between items-center mb-2"><h3 class="text-sm font-bold">${p.name}</h3><span class="text-[11px] text-on-surface-variant">${p.track_ids.length} lagu</span></div><p class="text-[11px] text-on-surface-variant mb-2 truncate">${tn}</p><div class="flex gap-1.5"><button class="text-[11px] font-bold px-2.5 py-1 rounded text-white" style="background:#50C878" onclick="playPlaylist('${p.id}')">Putar</button><button class="text-[11px] px-2.5 py-1 rounded border border-outline-variant" onclick="openPlaylistModal('${p.id}')">Edit</button><button class="text-[11px] px-2.5 py-1 rounded border border-red-300 text-red-500" onclick="removePlaylist('${p.id}')">Hapus</button></div></div>`;
     }).join('');
 }
-function playPlaylist(id){const p=playlists.find(p=>p.id===id);if(!p)return;const plTracks=p.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false);if(!plTracks.length){toast('Kosong / file lokal tidak tersedia');return}isLibraryPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...plTracks].sort(()=>Math.random()-.5):[...plTracks];currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+p.name)}
+function playPlaylist(id){const p=playlists.find(p=>p.id===id);if(!p)return;const plTracks=p.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false);if(!plTracks.length){toast('Kosong / file lokal tidak tersedia');return}isLibraryPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...plTracks].sort(()=>Math.random()-.5):[...plTracks];currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+p.name)}
 window.playPlaylist=playPlaylist;
 async function removePlaylist(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('playlists').delete().eq('id',id);playlists=playlists.filter(p=>p.id!==id);saveLocal();renderPlaylists();toast('Dihapus')}
 window.removePlaylist=removePlaylist;
@@ -1029,7 +1029,7 @@ function toggleUpacaraSong(uid,tid){
     const currentlyPlaying=isPlaying&&currentPlaylist.length&&currentPlaylist[currentPlaylistIndex]?.id===tid&&stopAfterPlaylist;
     if(currentlyPlaying){audio.pause();isPlaying=false;pausedPosition=audio.currentTime;updatePlayPauseBtn();renderUpacaras();return}
     if(idx<0)return;
-    stopAfterPlaylist=true;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=list;currentPlaylistIndex=idx;pausedPosition=0;loadAndPlay();renderUpacaras();
+    stopAfterPlaylist=true;loopPlaylist=false;stopAfterCurrentSong=true;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;currentPlaylist=list;currentPlaylistIndex=idx;pausedPosition=0;loadAndPlay();renderUpacaras();
 }
 window.toggleUpacaraSong=toggleUpacaraSong;
 function renderUpacaras(){
@@ -1048,10 +1048,32 @@ function renderUpacaras(){
                 <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="removeSongFromUpacara('${u.id}','${t.id}')"><span class="material-symbols-outlined text-[14px]">delete</span></button>
             </div>`;
         }).join(''):'<p class="text-xs text-on-surface-variant py-2">Belum ada lagu. Klik "+ Lagu" untuk menambah.</p>';
+        const cur=currentPlaylist[currentPlaylistIndex];
+        const curInUp=cur&&u.track_ids.includes(cur.id);
+        const upPlaying=isPlaying;
+        const upBar=curInUp?`<div class="glass-card rounded-xl p-3 mb-3" style="background:#eef6f0">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878"><span class="material-symbols-outlined text-[16px]">${upPlaying?'graphic_eq':'music_note'}</span></div>
+                    <div class="flex-1 min-w-0"><p class="text-sm font-bold text-green-700 truncate" id="upTrackName">${cur.name}</p><p class="text-[11px] text-on-surface-variant" id="upPlayingTime">${formatTime(audio.currentTime||0)} / ${formatTime(audio.duration||0)}</p></div>
+                    <div class="flex items-center gap-0.5">
+                        <button class="w-7 h-7 rounded-full bg-white flex items-center justify-center hover:bg-gray-100" onclick="event.stopPropagation();prevTrack()"><span class="material-symbols-outlined text-[14px]">skip_previous</span></button>
+                        <button class="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878" onclick="event.stopPropagation();togglePlayPause()"><span class="material-symbols-outlined text-[16px]" id="upPlayPauseIcon">${upPlaying?'pause':'play_arrow'}</span></button>
+                        <button class="w-7 h-7 rounded-full bg-white flex items-center justify-center hover:bg-gray-100" onclick="event.stopPropagation();nextTrack()"><span class="material-symbols-outlined text-[14px]">skip_next</span></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="player-progress flex-1" onclick="event.stopPropagation();seekTrack(event)" style="height:4px"><div class="player-progress-fill" id="upProgressFill" style="width:${cur.duration>0?(audio.currentTime/cur.duration*100):0}%"></div></div>
+                    <div class="flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px] text-on-surface-variant">volume_up</span>
+                        <input type="range" min="0" max="100" value="${settings.volume}" class="w-16" onclick="event.stopPropagation()" oninput="setMasterVolume(this.value)">
+                    </div>
+                </div>
+            </div>`:'';
         c.innerHTML=`<div class="flex items-center gap-2 mb-3">
                 <button class="text-sm flex items-center gap-1 text-on-surface-variant" onclick="backFromUpacara()"><span class="material-symbols-outlined text-[18px]">arrow_back</span>Kembali</button>
                 <button class="ml-auto text-[11px] px-2.5 py-1 rounded border border-outline-variant" onclick="openUpacaraModal('${u.id}')">Edit Nama</button>
             </div>
+            ${upBar}
             <div class="glass-card rounded-xl p-4 mb-3">
                 <h3 class="text-base font-bold mb-1">${u.name}</h3>
                 <p class="text-[11px] text-on-surface-variant mb-3">${list.length} lagu • 1x putar (tanpa loop)</p>
@@ -1079,7 +1101,7 @@ function renderUpacaras(){
     }).join('');
 }
 window.renderUpacaras=renderUpacaras;
-function playUpacara(id){const u=upacaras.find(u=>u.id===id);if(!u)return;const ut=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);if(!ut.length){toast('Kosong, tambah lagu dulu');return}isLibraryPlaying=false;stopAfterPlaylist=true;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=ut;currentPlaylistIndex=0;pausedPosition=0;loadAndPlay();toast('Putar (1x): '+u.name)}
+function playUpacara(id){const u=upacaras.find(u=>u.id===id);if(!u)return;const ut=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);if(!ut.length){toast('Kosong, tambah lagu dulu');return}isLibraryPlaying=false;stopAfterPlaylist=true;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=ut;currentPlaylistIndex=0;pausedPosition=0;loadAndPlay();toast('Putar (1x): '+u.name)}
 window.playUpacara=playUpacara;
 async function removeUpacara(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('upacaras').delete().eq('id',id);upacaras=upacaras.filter(u=>u.id!==id);if(activeUpacaraId===id)activeUpacaraId=null;saveLocal();renderUpacaras();toast('Dihapus')}
 window.removeUpacara=removeUpacara;
@@ -1235,7 +1257,7 @@ function checkAutoPlay(now){
             else{const u=upacaras.find(u=>u.id===s.source_id);if(u)sourceTracks=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false)}
             if(sourceTracks.length){
                 currentPlaylist=s.loop?(settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):sourceTracks):sourceTracks;
-                isLibraryPlaying=false;loopPlaylist=!!s.loop;stopAfterPlaylist=!s.loop;activeScheduleId=s.id;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
+                isLibraryPlaying=false;loopPlaylist=!!s.loop;stopAfterPlaylist=!s.loop;stopAfterCurrentSong=false;activeScheduleId=s.id;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
                 if(!isPlaying){
                     manualPauseKey=null;
                     if(pausedPosition>0){resumePlaying();toast('Lanjut: '+s.title)}
@@ -1404,7 +1426,7 @@ function playScheduleNow(id){
     else{const u=upacaras.find(u=>u.id===s.source_id);if(u)sourceTracks=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean)}
     sourceTracks=sourceTracks.filter(x=>x.type==='online'||x._localAvailable!==false);
     if(!sourceTracks.length){toast('File lokal tidak tersedia / daftar kosong');return}
-    stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
+    stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
     manualOverrideUntil=Date.now()+7200000;
     currentPlaylist=settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):[...sourceTracks];
     currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+s.title);
