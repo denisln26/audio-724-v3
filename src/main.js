@@ -8,7 +8,7 @@ const HIJRI_M=['Muharram','Safar','Rabiul Awal','Rabiul Akhir','Jumadil Awal','J
 let currentUser=null, tracks=[], playlists=[], upacaras=[], schedules=[];
 let currentPlaylist=[], currentPlaylistIndex=-1, isPlaying=false, isPrayerTime=false, autoPlayEnabled=false, pausedPosition=0, stopAfterPlaylist=false, loopPlaylist=false, stopAfterCurrentSong=false, silencedUntil=0;
 let adzanPlayedToday={};
-let prayerTimes={}, editingId=null, editingType='';
+let prayerTimes={}, editingId=null, editingType='', editingPlaylistIds=[];
 let activeScheduleId=null, manualPauseKey=null, activeScheduleVolumePct=100;
 let isIndoRayaActive=false;
 let irAudio=null,irAudioUrl=null,irResumeTimer=null,irCooldownUntil=0;
@@ -238,6 +238,13 @@ function saveSettings(){
     updateAdzanStatus();
     saveLocal();
 }
+async function saveIndoRayaSetting(){
+    settings.indoRayaTrackId=$('indoRayaTrack')?.value||null;
+    saveLocal();
+    const ok=await saveUserSettingsNow();
+    toast(ok?'Indonesia Raya tersimpan':'Tersimpan lokal (gagal ke database)');
+}
+window.saveIndoRayaSetting=saveIndoRayaSetting;
 // Tombol "Simpan Pengaturan Jadwal Sholat": beri indikator Menyimpan... -> ✓ Tersimpan / Gagal
 async function saveSholatSettings(btn){
     const lbl=btn.querySelector('span');const old='Simpan Pengaturan Jadwal Sholat';
@@ -931,16 +938,40 @@ function openPlaylistModal(id){
     editingType='playlist';editingId=id||null;
     $('playlistModalTitle').textContent=id?'Edit Playlist':'Buat Playlist';
     $('playlistNameInput').value=id?playlists.find(p=>p.id===id)?.name||'':'';
-    const c=$('playlistTrackSelect');const ut=getUserTracks();
-    if(!ut.length){c.innerHTML='<p class="text-xs text-on-surface-variant">Upload lagu dulu</p>';return}
-    const ex=id?playlists.find(p=>p.id===id)?.track_ids||[]:[];
-    c.innerHTML=ut.map(t=>`<label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs"><input type="checkbox" value="${t.id}" ${ex.includes(t.id)?'checked':''}> ${t.name}</label>`).join('');
+    editingPlaylistIds=id?[...playlists.find(p=>p.id===id)?.track_ids||[]]:[];
+    renderPlaylistPicker();
     $('playlistModal').classList.add('active');
 }
 window.openPlaylistModal=openPlaylistModal;
+function renderPlaylistPicker(){
+    const ut=getUserTracks();const sel=$('playlistTrackSelect');
+    sel.innerHTML=ut.length?ut.map(t=>`<label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs"><input type="checkbox" value="${t.id}" ${editingPlaylistIds.includes(t.id)?'checked':''} onchange="togglePlaylistTrack('${t.id}')"> ${t.name}</label>`).join(''):'<p class="text-xs text-on-surface-variant">Upload lagu dulu</p>';
+    const ord=$('playlistOrderList');
+    if(ord)ord.innerHTML=editingPlaylistIds.length?editingPlaylistIds.map((tid,i)=>{
+        const t=tracks.find(x=>x.id===tid);if(!t)return'';
+        return`<div class="flex items-center gap-1.5 p-1.5 rounded text-xs" style="background:#eef6f0">
+            <span class="w-4 text-center text-on-surface-variant font-bold">${i+1}</span>
+            <span class="flex-1 min-w-0 truncate">${t.name}</span>
+            <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();movePlaylistTrack(${i},-1)" ${i===0?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_upward</span></button>
+            <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();movePlaylistTrack(${i},1)" ${i===editingPlaylistIds.length-1?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_downward</span></button>
+            <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200 text-red-500" onclick="event.stopPropagation();removePlaylistTrack('${tid}')"><span class="material-symbols-outlined text-[14px]">close</span></button>
+        </div>`;
+    }).join(''):'<p class="text-[11px] text-on-surface-variant py-1">Belum ada lagu dipilih</p>';
+}
+window.renderPlaylistPicker=renderPlaylistPicker;
+function togglePlaylistTrack(id){
+    if(editingPlaylistIds.includes(id))editingPlaylistIds=editingPlaylistIds.filter(x=>x!==id);
+    else editingPlaylistIds.push(id);
+    renderPlaylistPicker();
+}
+window.togglePlaylistTrack=togglePlaylistTrack;
+function movePlaylistTrack(i,dir){const j=i+dir;if(j<0||j>=editingPlaylistIds.length)return;[editingPlaylistIds[i],editingPlaylistIds[j]]=[editingPlaylistIds[j],editingPlaylistIds[i]];renderPlaylistPicker();}
+window.movePlaylistTrack=movePlaylistTrack;
+function removePlaylistTrack(id){editingPlaylistIds=editingPlaylistIds.filter(x=>x!==id);renderPlaylistPicker();}
+window.removePlaylistTrack=removePlaylistTrack;
 async function savePlaylist(){
     const name=$('playlistNameInput').value.trim();if(!name){toast('Nama harus diisi');return}
-    const ids=Array.from($('playlistTrackSelect').querySelectorAll('input:checked')).map(c=>c.value);
+    const ids=[...editingPlaylistIds];
     if(!ids.length){toast('Pilih minimal 1 lagu');return}
     if(editingId){
         if(isSupabaseConfigured())await getSupabase().from('playlists').update({name,track_ids:ids}).eq('id',editingId);
@@ -1022,6 +1053,16 @@ function removeSongFromUpacara(uid,tid){
     saveLocal();renderUpacaras();
 }
 window.removeSongFromUpacara=removeSongFromUpacara;
+async function moveUpacaraSong(uid,tid,dir){
+    const u=upacaras.find(u=>u.id===uid);if(!u)return;
+    const i=u.track_ids.indexOf(tid);const j=i+dir;
+    if(i<0||j<0||j>=u.track_ids.length)return;
+    [u.track_ids[i],u.track_ids[j]]=[u.track_ids[j],u.track_ids[i]];
+    if(isSupabaseConfigured())await getSupabase().from('upacaras').update({track_ids:u.track_ids}).eq('id',u.id);
+    saveLocal();renderUpacaras();
+}
+window.moveUpacaraSong=moveUpacaraSong;
+window.removeSongFromUpacara=removeSongFromUpacara;
 function toggleUpacaraSong(uid,tid){
     const u=upacaras.find(u=>u.id===uid);if(!u)return;
     const list=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);
@@ -1038,14 +1079,18 @@ function renderUpacaras(){
         const u=upacaras.find(u=>u.id===activeUpacaraId);
         if(!u){activeUpacaraId=null;return renderUpacaras();}
         const list=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);
-        const songs=list.length?list.map(t=>{
+        const songs=list.length?list.map((t,idx)=>{
             const playingThis=isPlaying&&currentPlaylist.length&&currentPlaylist[currentPlaylistIndex]?.id===t.id&&stopAfterPlaylist;
             const vol=t.volume||100;
             return`<div class="flex items-center gap-2 p-2 rounded-lg" style="background:#eef6f0">
                 <button class="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878" onclick="toggleUpacaraSong('${u.id}','${t.id}')"><span class="material-symbols-outlined text-[16px]">${playingThis?'pause':'play_arrow'}</span></button>
                 <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-on-surface-variant">${t.type==='online'?'Online':formatTime(t.duration)}</p></div>
                 <div class="flex items-center gap-1" onclick="event.stopPropagation()"><input type="range" min="0" max="100" value="${vol}" class="w-16" onchange="setTrackVolById('${t.id}',this.value)"><span class="text-[10px] w-7">${vol}%</span></div>
-                <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="removeSongFromUpacara('${u.id}','${t.id}')"><span class="material-symbols-outlined text-[14px]">delete</span></button>
+                <div class="flex items-center gap-0.5">
+                    <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();moveUpacaraSong('${u.id}','${t.id}',-1)" ${idx===0?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_upward</span></button>
+                    <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();moveUpacaraSong('${u.id}','${t.id}',1)" ${idx===list.length-1?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_downward</span></button>
+                    <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="removeSongFromUpacara('${u.id}','${t.id}')"><span class="material-symbols-outlined text-[14px]">delete</span></button>
+                </div>
             </div>`;
         }).join(''):'<p class="text-xs text-on-surface-variant py-2">Belum ada lagu. Klik "+ Lagu" untuk menambah.</p>';
         const cur=currentPlaylist[currentPlaylistIndex];
@@ -1079,7 +1124,6 @@ function renderUpacaras(){
                 <p class="text-[11px] text-on-surface-variant mb-3">${list.length} lagu • 1x putar (tanpa loop)</p>
                 <div class="space-y-1.5 mb-3">${songs}</div>
                 <div class="flex flex-wrap gap-1.5">
-                    <button class="text-[11px] font-bold px-3 py-1.5 rounded text-white" style="background:#50C878" onclick="playUpacara('${u.id}')">Putar Semua (1x)</button>
                     <button class="text-[11px] px-3 py-1.5 rounded border border-outline-variant" onclick="openAddSongToUpacara('${u.id}')">+ Lagu</button>
                 </div>
             </div>`;
@@ -1101,8 +1145,6 @@ function renderUpacaras(){
     }).join('');
 }
 window.renderUpacaras=renderUpacaras;
-function playUpacara(id){const u=upacaras.find(u=>u.id===id);if(!u)return;const ut=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);if(!ut.length){toast('Kosong, tambah lagu dulu');return}isLibraryPlaying=false;stopAfterPlaylist=true;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=ut;currentPlaylistIndex=0;pausedPosition=0;loadAndPlay();toast('Putar (1x): '+u.name)}
-window.playUpacara=playUpacara;
 async function removeUpacara(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('upacaras').delete().eq('id',id);upacaras=upacaras.filter(u=>u.id!==id);if(activeUpacaraId===id)activeUpacaraId=null;saveLocal();renderUpacaras();toast('Dihapus')}
 window.removeUpacara=removeUpacara;
 
@@ -1205,6 +1247,7 @@ async function saveSchedule(){
 window.saveSchedule=saveSchedule;
 function renderSchedules(){
     const c=$('scheduleList');
+    populateAdzanSelectors();
     const tg=$('autoPlayToggle');if(tg)tg.checked=autoPlayEnabled;
     const us=currentUser?.role==='admin'?schedules:schedules.filter(s=>s.owner===currentUser.id);
     if(!us.length){c.innerHTML='<div class="glass-card rounded-xl p-6 text-center text-on-surface-variant"><p class="text-xs">Belum ada jadwal</p></div>';return}
