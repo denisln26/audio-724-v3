@@ -714,7 +714,10 @@ async function addGDriveTrack(){
     const src=convertGDriveToDirect(link);
     if(!src){toast('Link Google Drive tidak valid');return}
     if(!gdriveProxyBase()){toast('Supabase belum dikonfigurasi (proxy GDrive tidak tersedia)');return}
-    const track={id:genId(),name,src,type:'gdrive',duration:0,size:'GDrive',owner:'shared'};
+    // Pemilik: admin -> 'shared' (dibagikan utk SEMUA user, TIDAK bisa dihapus user biasa);
+    // user biasa -> id user (hanya bisa dihapus oleh pemiliknya sendiri).
+    const gOwner=currentUser&&currentUser.role==='admin'?'shared':currentUser.id;
+    const track={id:genId(),name,src,type:'gdrive',duration:0,size:'GDrive',owner:gOwner};
     // Simpan dahulu ke database agar tidak hilang saat refresh; baru tampilkan bila berhasil
     if(isSupabaseConfigured()){
         try{
@@ -824,26 +827,46 @@ function renderTracks(){
             </div>`;
         }
         const unavailable=t.type==='offline'&&t._localAvailable===false;
+        const deletable=canDeleteTrack(t);
+        const adminShared=t.type==='gdrive'&&t.owner&&t.owner!==currentUser.id;
         if(unavailable){
             return`<div class="track-item flex items-center gap-2.5 p-2.5 rounded-lg bg-red-50/50 opacity-70">
             <div class="w-7 h-7 rounded-full flex items-center justify-center bg-gray-200 shrink-0"><span class="material-symbols-outlined text-[14px] text-gray-400">block</span></div>
             <span class="shrink-0 cursor-default" title="Musik lokal (PC)">${icon}</span>
             <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-red-400">File lokal tidak tersedia • ${t.size}</p></div>
-            <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>
+            ${deletable?`<button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>`:''}
         </div>`;
         }
         return`<div class="track-item flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="playTrack(${gi})">
             <button class="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878" onclick="event.stopPropagation();playTrack(${gi})"><span class="material-symbols-outlined text-[14px]">play_arrow</span></button>
             <span class="shrink-0 cursor-default" title="${t.type==='offline'?'Musik lokal (PC)':'Musik online'}">${icon}</span>
-            <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-on-surface-variant">${t.type==='online'?((t.duration>0)?formatTime(t.duration)+' • ':'')+'Online':formatTime(t.duration)+' • '+t.size}</p></div>
+            <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}${adminShared?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:#4285F4;color:#fff">ADMIN</span>':''}</p><p class="text-[11px] text-on-surface-variant">${t.type==='online'?((t.duration>0)?formatTime(t.duration)+' • ':'')+'Online':formatTime(t.duration)+' • '+t.size}</p></div>
             <div class="flex items-center gap-1.5" onclick="event.stopPropagation()"><input type="range" min="0" max="100" value="${t.volume||100}" class="w-16" onchange="setTrackVol(${gi},this.value)"><span class="text-[10px] w-7">${t.volume||100}%</span></div>
-            <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>
+            ${deletable?`<button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>`:''}
         </div>`;
     }).join('');
 }
 function setTrackVol(i,v){tracks[i].volume=parseInt(v);saveLocal();renderTracks();if(currentPlaylist[currentPlaylistIndex]?.id===tracks[i].id)audio.volume=v/100*settings.volume/100}
 window.setTrackVol=setTrackVol;
-async function removeTrack(i){if(!confirm('Hapus?'))return;const t=tracks[i];if(t.type==='offline'){try{await deleteBlob(t.id)}catch(e){}}if(isSupabaseConfigured()){await getSupabase().from('tracks').delete().eq('id',t.id)}tracks.splice(i,1);saveLocal();renderTracks();toast('Dihapus')}
+// Aturan hapus track:
+//  - Admin boleh hapus SEMUA.
+//  - User biasa hanya boleh hapus track miliknya (owner=id user).
+//  - Lagu gdrive yang dibagikan admin (owner='shared') TIDAK boleh dihapus user biasa.
+function canDeleteTrack(t){
+    if(!t)return false;
+    if(currentUser&&currentUser.role==='admin')return true;
+    if(t.type!=='gdrive')return true;              // upload lokal/online milik user sendiri
+    return !!(t.owner&&t.owner===currentUser.id);  // gdrive: hanya milik sendiri
+}
+window.canDeleteTrack=canDeleteTrack;
+async function removeTrack(i){
+    const t=tracks?.[i];if(!t)return;
+    if(!canDeleteTrack(t)){toast('Tidak bisa dihapus — lagu ini dibagikan oleh admin');return}
+    if(!confirm('Hapus?'))return;
+    if(t.type==='offline'){try{await deleteBlob(t.id)}catch(e){}}
+    if(isSupabaseConfigured()){await getSupabase().from('tracks').delete().eq('id',t.id)}
+    tracks.splice(i,1);saveLocal();renderTracks();toast('Dihapus');
+}
 window.removeTrack=removeTrack;
 function playTrack(i){const t=tracks[i];if(!t)return;if(t.type==='offline'&&t._localAvailable===false){toast('File lokal tidak tersedia di perangkat ini');return}isLibraryPlaying=true;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=getUserTracks().filter(x=>x._localAvailable!==false);currentPlaylistIndex=currentPlaylist.indexOf(t);if(currentPlaylistIndex<0)currentPlaylistIndex=0;loadAndPlay()}
 window.playTrack=playTrack;
