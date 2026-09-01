@@ -22,6 +22,7 @@
         .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-overlay.active{display:flex}
         .modal{background:#fff;border-radius:12px;padding:20px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
+        #playlistModal .modal{max-width:640px;max-height:90vh}
         .player-progress{width:100%;height:3px;background:#e2e8f0;border-radius:2px;cursor:pointer;position:relative}
         .player-progress-fill{height:100%;background:#50C878;border-radius:2px;width:0%;transition:none}
         .track-row.playing{background:#f0fdf4!important;border-left:3px solid #50C878}
@@ -47,6 +48,28 @@
         .prayer-card.next .prayer-time{color:#50C878}
         .type-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px}
         .type-offline{background:#e0f2fe;color:#0369a1}.type-online{background:#dcfce7;color:#15803d}
+        /* Countdown menarik — gradient + glow + pulse */
+        #countdownDisplay{
+            background:linear-gradient(90deg,#0f172a 0%,#50C878 50%,#0f172a 100%);
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+            background-size:200% 100%;
+            animation:countdownGradient 3s linear infinite;
+            filter:drop-shadow(0 2px 10px rgba(80,200,120,0.28));
+            letter-spacing:-0.04em;
+        }
+        html.dark #countdownDisplay{
+            background:linear-gradient(90deg,#f1f5f9 0%,#50C878 50%,#86efac 100%);
+            -webkit-background-clip:text;background-clip:text;
+            filter:drop-shadow(0 2px 12px rgba(80,200,120,0.35));
+        }
+        #countdownDisplay.tick{animation:countdownGradient 3s linear infinite, countdownTick 0.35s ease}
+        #countdownDisplay .cd-sep{opacity:0.35; -webkit-text-fill-color:#94a3b8}
+        #countdownDisplay .cd-sec{font-size:0.55em; opacity:0.7; -webkit-text-fill-color:#475569; vertical-align:super; margin-left:2px}
+        html.dark #countdownDisplay .cd-sec{-webkit-text-fill-color:#94a3b8}
+        #countdownLabel{animation:labelPulse 2s ease-in-out infinite}
+        @keyframes countdownGradient{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+        @keyframes countdownTick{0%{transform:scale(1)}30%{transform:scale(1.04)}100%{transform:scale(1)}}
+        @keyframes labelPulse{0%,100%{opacity:1}50%{opacity:0.85}}
         @media(max-width:768px){.main-content{margin-left:0!important}.sidebar{z-index:110!important;transform:translateX(-102%);transition:transform .28s ease;width:260px;max-width:80vw}.sidebar.open{transform:translateX(0);box-shadow:0 0 60px rgba(0,0,0,.35)}.sidebar.open .nav-item{position:relative;z-index:112;pointer-events:auto}.sidebar-backdrop.show{opacity:1;pointer-events:auto}}
         /* Tombol hamburger (hanya tampil di layar mobile) */
         .hamburger-btn{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:#f1f5f9;color:#0f172a;margin-right:2px}
@@ -55,6 +78,88 @@
         @media(max-width:768px){.hamburger-btn{display:inline-flex}}
         /* Backdrop gelap di belakang drawer sidebar (mobile) */
         .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:105;opacity:0;pointer-events:none;transition:opacity .25s}
+        /* Dark mode — comprehensive overrides untuk semua utility Tailwind custom */
+        html.dark{color-scheme:dark}
+        html.dark body{background:#0f172a!important;color:#f1f5f9!important}
+        html.dark .bg-white,
+        html.dark .bg-surface,
+        html.dark [class*="bg-white"]{background-color:#1e293b!important}
+        html.dark .bg-surface-variant,
+        html.dark .bg-background,
+        html.dark [class*="bg-surface-variant"],
+        html.dark .bg-gray-50,
+        html.dark [class*="bg-gray-50"]{background-color:#0f172a!important}
+        html.dark .bg-gray-100,
+        html.dark [class*="bg-gray-100"]{background-color:#1e293b!important}
+        html.dark .glass-card{background:#1e293b!important;border-color:#334155!important;color:#f1f5f9!important}
+        html.dark .glass-card .bg-white\/85,
+        html.dark .glass-card .bg-white\/90{background-color:rgba(30,41,59,0.85)!important}
+        html.dark header{background:#1e293b!important;border-color:#334155!important}
+        html.dark .sidebar{background:#1e293b!important;border-color:#334155!important}
+        html.dark .main-content{background:#0f172a!important}
+        html.dark .text-on-surface,
+        html.dark [class*="text-on-surface"]{color:#f1f5f9!important}
+        html.dark .text-on-surface-variant,
+        html.dark [class*="text-on-surface-variant"]{color:#94a3b8!important}
+        html.dark .border-outline-variant,
+        html.dark .border-outline,
+        html.dark [class*="border-outline"]{border-color:#334155!important}
+        html.dark .border-outline-variant{border-color:#334155!important}
+        html.dark .hover\:bg-gray-50:hover,
+        html.dark [class*="hover:bg-gray-50"]:hover{background-color:#334155!important}
+        html.dark .hover\:bg-gray-100:hover,
+        html.dark [class*="hover:bg-gray-100"]:hover{background-color:#334155!important}
+        html.dark .hover\:bg-gray-50:hover[class*="bg-"]{background-color:#334155!important}
+        html.dark input, html.dark select, html.dark textarea{background:#0f172a!important;color:#f1f5f9!important;border-color:#334155!important}
+        html.dark input::placeholder, html.dark textarea::placeholder{color:#64748b!important}
+        html.dark .modal{background:#1e293b!important;color:#f1f5f9!important;border-color:#334155!important}
+        html.dark .modal-overlay{background:rgba(0,0,0,.7)!important}
+        html.dark .nav-active{background:#334155!important;color:#fff!important;border-left-color:#50C878!important}
+        html.dark .nav-item{color:#94a3b8!important}
+        html.dark .nav-item:hover{background:#1e293b!important;color:#f1f5f9!important}
+        html.dark .badge-active{background:rgba(80,200,120,.2)!important;color:#86efac!important}
+        html.dark .badge-waiting{background:rgba(251,191,36,.2)!important;color:#fcd34d!important}
+        html.dark .badge-disabled{background:#334155!important;color:#94a3b8!important}
+        html.dark .player-progress{background:#334155!important}
+        html.dark .prayer-card{background:#1e293b!important;border-color:#334155!important}
+        html.dark .prayer-card.next{background:rgba(80,200,120,.12)!important;border-color:#50C878!important}
+        html.dark .type-offline{background:#0c4a6e!important;color:#7dd3fc!important}
+        html.dark .type-online{background:#14532d!important;color:#86efac!important}
+        html.dark .toast{background:#f1f5f9!important;color:#0f172a!important}
+        html.dark .upload-zone{border-color:#334155!important;background:rgba(30,41,59,.5)!important}
+        html.dark .upload-zone:hover{border-color:#50C878!important;background:rgba(80,200,120,.08)!important}
+        html.dark .badge-waiting{background:rgba(255,183,131,.2)!important}
+        html.dark .badge-disabled{background:#334155!important;color:#94a3b8!important}
+        html.dark .player-progress{background:#334155!important}
+        /* Perbaikan warna terang yang tersisa di dark mode — mint/green/red/gray kustom */
+        html.dark [style*="#eef6f0"],
+        html.dark [style*="#EEF6F0"]{background:#14331a!important;border-color:#1a4d2e!important;color:#bbf7d0!important}
+        html.dark .bg-green-50,
+        html.dark [class*="bg-green-50"]{background-color:rgba(20,83,45,0.28)!important;border-color:#166534!important}
+        html.dark .bg-green-100,
+        html.dark [class*="bg-green-100"]{background-color:rgba(20,83,45,0.45)!important}
+        html.dark [class*="bg-green-50/40"]{background-color:rgba(20,83,45,0.2)!important}
+        html.dark .border-green-400{border-color:#22c55e!important}
+        html.dark .border-green-500{border-color:#16a34a!important}
+        html.dark .bg-red-50,
+        html.dark [class*="bg-red-50"]{background-color:rgba(127,29,29,0.22)!important}
+        html.dark .border-red-100,
+        html.dark .border-red-200,
+        html.dark .border-red-300{border-color:#7f1d1d!important}
+        html.dark .text-red-500,
+        html.dark .text-red-600{color:#f87171!important}
+        html.dark .bg-gray-200,
+        html.dark [class*="bg-gray-200"]{background-color:#334155!important;color:#94a3b8!important}
+        html.dark .hover\:bg-gray-200:hover,
+        html.dark [class*="hover:bg-gray-200"]:hover{background-color:#334155!important}
+        html.dark .bg-white\/15{background-color:rgba(255,255,255,0.08)!important}
+        html.dark .text-green-600,
+        html.dark .text-green-700{color:#86efac!important}
+        html.dark .text-gray-400{color:#94a3b8!important}
+        html.dark .border-black{border-color:#475569!important}
+        html.dark .bg-black{background-color:#1e293b!important}
+        html.dark .bg-yellow-50,
+        html.dark [class*="bg-yellow"]{background-color:rgba(113,63,18,0.25)!important}
     </style>
 </head>
 <body class="bg-background font-body text-on-surface flex h-screen overflow-hidden">
@@ -86,10 +191,11 @@
     <header class="bg-white border-b border-outline-variant flex justify-between items-center w-full px-5 py-3 z-10 sticky top-0">
         <div class="flex items-center gap-3"><button class="hamburger-btn" title="Menu" onclick="toggleMobileMenu(true)"><span class="material-symbols-outlined text-[22px]">menu</span></button><h1 class="text-sm font-bold">Smart Audio Scheduler</h1>
             <span class="px-2 py-0.5 rounded-full border border-outline-variant text-[11px] flex items-center gap-1 text-on-surface-variant" id="connectionBadge"><span class="material-symbols-outlined text-[13px]">cloud_done</span> <span id="connectionText">Online</span></span>
+            <span id="topbarLocation" class="hidden items-center gap-1 text-[11px] text-on-surface-variant bg-gray-50 border border-outline-variant px-2.5 py-1 rounded-full"><span class="material-symbols-outlined text-[14px]" style="color:#50C878">location_on</span><span id="topbarLocationText" class="font-medium">--</span></span>
         </div>
-        <div class="flex items-center gap-3 text-on-surface-variant">
-            <button class="hover:text-primary transition-colors" onclick="location.reload()"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
-            <div class="text-right"><div class="text-sm font-bold" id="headerClock">--:--:--</div><div class="text-[11px]" id="headerDate">--</div></div>
+        <div class="flex items-center gap-2 text-on-surface-variant">
+            <button id="darkModeToggle" class="w-9 h-9 rounded-full bg-gray-50 border border-outline-variant flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-colors" onclick="toggleDarkMode()" title="Dark mode"><span class="material-symbols-outlined text-[18px]" id="darkModeIcon">dark_mode</span></button>
+            <button class="w-9 h-9 rounded-full bg-gray-50 border border-outline-variant flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-colors" onclick="location.reload()" title="Refresh"><span class="material-symbols-outlined text-[18px]">autorenew</span></button>
         </div>
     </header>
 
@@ -118,9 +224,28 @@
 
         <!-- DASHBOARD -->
         <div class="page" id="page-dashboard">
-            <div class="flex justify-between items-end mb-7">
-                <div><h2 class="text-2xl md:text-3xl font-bold" id="greetingText">Selamat Datang</h2><p class="text-sm md:text-base text-on-surface-variant mt-1">Ini jadwal sholat dan musik Anda hari ini.</p></div>
-                <div class="text-right hidden sm:block"><p class="text-sm md:text-base font-bold" id="dashDate">--</p><p class="mt-1 text-xs md:text-sm font-semibold" style="color:#50C878" id="hijriDate">--</p></div>
+            <div class="mb-5">
+                <h2 class="text-2xl md:text-3xl font-bold" id="greetingText">Selamat Datang</h2>
+                <p class="text-sm md:text-base text-on-surface-variant mt-1">Ini jadwal sholat dan musik Anda hari ini.</p>
+            </div>
+            <!-- Card Jam Digital -->
+            <div class="glass-card rounded-xl overflow-hidden shadow-sm relative mb-6" style="background:linear-gradient(135deg,#0f172a 0%,#1a5c3a 55%,#0f172a 100%);color:#fff">
+                <div class="absolute inset-0 mosque-pattern opacity-[0.07]"></div>
+                <div class="relative z-10 p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-white text-[24px]">schedule</span></div>
+                        <div>
+                            <p class="text-[10px] tracking-[0.2em] opacity-60 font-bold">JAM DIGITAL</p>
+                            <p class="text-3xl md:text-4xl font-bold tabular-nums tracking-tight leading-none mt-1" id="dashDigitalClock">--:--:--</p>
+                            <p class="text-xs opacity-80 mt-1" id="dashDigitalDate">--</p>
+                        </div>
+                    </div>
+                    <div class="text-center md:text-right">
+                        <p class="text-xs opacity-80 flex items-center gap-1.5 justify-center md:justify-end"><span class="material-symbols-outlined text-[14px]">location_on</span><span id="dashDigitalLocation">Memuat lokasi...</span></p>
+                        <p class="text-xs font-semibold mt-1.5 tracking-wide" id="dashDigitalHijri">-- H</p>
+                        <p class="text-[10px] opacity-50 mt-0.5 font-mono" id="dashDigitalCoords">--</p>
+                    </div>
+                </div>
             </div>
             <!-- Baris Atas -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -158,6 +283,10 @@
                         <div class="flex justify-between items-center text-[11px]">
                             <span class="flex items-center gap-1.5 text-on-surface-variant"><span class="type-icon type-online"><span class="material-symbols-outlined" style="font-size:12px">cloud</span></span>Musik Online</span>
                             <span class="font-bold text-on-surface whitespace-nowrap" id="storageOnlineSize">0 MB</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="flex items-center gap-1.5 text-on-surface-variant"><span class="type-icon type-online" style="background:#4285F4;color:#fff"><span class="material-symbols-outlined" style="font-size:12px">drive_file_move</span></span>Google Drive</span>
+                            <span class="font-bold text-on-surface whitespace-nowrap" id="storageGdriveSize">0 file</span>
                         </div>
                     </div>
                 </div>
@@ -315,13 +444,28 @@
                 <div class="glass-card rounded-xl p-5">
                     <h3 class="text-sm font-bold flex items-center gap-2 mb-3"><span class="material-symbols-outlined text-[18px]">volume_up</span> Pengaturan Adzan & Doa</h3>
                     <div class="space-y-3">
-                        <div>
-                            <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Subuh</span><select id="adzanSubuhTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
-                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="90" id="adsub_r" class="flex-1" oninput="volSetValue('adsub',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="90" id="adsub_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adsub',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adsub_l">90%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('subuh')">Test</button></div>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Umum</span><select id="adzanUmumTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
-                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="80" id="adumum_r" class="flex-1" oninput="volSetValue('adumum',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adumum_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adumum',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adumum_l">80%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('umum')">Test</button></div>
+                        <p class="text-[11px] font-bold text-on-surface-variant -mb-1">Audio Adzan per Waktu — sumber dari Library</p>
+                        <div class="space-y-2" id="adzanPerWaktuList">
+                            <div class="p-2.5 rounded-lg bg-gray-50 border border-outline-variant">
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5"><span class="text-xs w-16 font-bold">Subuh</span><select id="adzanTrack_Subuh" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select><button class="text-[11px] px-2 py-1 border border-outline-variant rounded shrink-0" onclick="previewAdzan('Subuh')">Test</button></div>
+                                <div class="flex items-center gap-2 pl-[72px]"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">volume_up</span><input type="range" min="0" max="100" value="90" id="adzan_Subuh_r" class="flex-1" oninput="volSetValue('adzan_Subuh',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="90" id="adzan_Subuh_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adzan_Subuh',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adzan_Subuh_l">90%</span></div>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-gray-50 border border-outline-variant">
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5"><span class="text-xs w-16 font-bold">Dzuhur</span><select id="adzanTrack_Dzuhur" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select><button class="text-[11px] px-2 py-1 border border-outline-variant rounded shrink-0" onclick="previewAdzan('Dzuhur')">Test</button></div>
+                                <div class="flex items-center gap-2 pl-[72px]"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">volume_up</span><input type="range" min="0" max="100" value="80" id="adzan_Dzuhur_r" class="flex-1" oninput="volSetValue('adzan_Dzuhur',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adzan_Dzuhur_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adzan_Dzuhur',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adzan_Dzuhur_l">80%</span></div>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-gray-50 border border-outline-variant">
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5"><span class="text-xs w-16 font-bold">Ashar</span><select id="adzanTrack_Ashar" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select><button class="text-[11px] px-2 py-1 border border-outline-variant rounded shrink-0" onclick="previewAdzan('Ashar')">Test</button></div>
+                                <div class="flex items-center gap-2 pl-[72px]"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">volume_up</span><input type="range" min="0" max="100" value="80" id="adzan_Ashar_r" class="flex-1" oninput="volSetValue('adzan_Ashar',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adzan_Ashar_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adzan_Ashar',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adzan_Ashar_l">80%</span></div>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-gray-50 border border-outline-variant">
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5"><span class="text-xs w-16 font-bold">Maghrib</span><select id="adzanTrack_Maghrib" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select><button class="text-[11px] px-2 py-1 border border-outline-variant rounded shrink-0" onclick="previewAdzan('Maghrib')">Test</button></div>
+                                <div class="flex items-center gap-2 pl-[72px]"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">volume_up</span><input type="range" min="0" max="100" value="80" id="adzan_Maghrib_r" class="flex-1" oninput="volSetValue('adzan_Maghrib',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adzan_Maghrib_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adzan_Maghrib',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adzan_Maghrib_l">80%</span></div>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-gray-50 border border-outline-variant">
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5"><span class="text-xs w-16 font-bold">Isya</span><select id="adzanTrack_Isya" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select><button class="text-[11px] px-2 py-1 border border-outline-variant rounded shrink-0" onclick="previewAdzan('Isya')">Test</button></div>
+                                <div class="flex items-center gap-2 pl-[72px]"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">volume_up</span><input type="range" min="0" max="100" value="80" id="adzan_Isya_r" class="flex-1" oninput="volSetValue('adzan_Isya',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adzan_Isya_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adzan_Isya',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adzan_Isya_l">80%</span></div>
+                            </div>
                         </div>
                         <div class="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50"><span class="text-xs w-24 font-bold">Doa Setelah</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="doaEnabled" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label></div>
                         <div class="flex items-center gap-3 p-2.5 rounded-lg bg-[#eef6f0] flex-wrap"><span class="text-xs w-24 font-bold">Musik Setelah Adzan</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="playAfterAdzan" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label><span class="text-xs ml-1">Delay</span><input type="number" min="0" max="60" value="10" id="afterAdzanDelay" class="w-14 px-2 py-1 text-xs border border-outline-variant rounded" onchange="saveSettings()"><span class="text-xs">menit</span></div>
@@ -363,12 +507,12 @@
 <div class="toast" id="toast"></div>
 
 <!-- MODALS -->
-<div class="modal-overlay" id="playlistModal"><div class="modal">
-    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold" id="playlistModalTitle">Buat Playlist</h3><button class="text-lg" onclick="closeModal('playlistModal')">&times;</button></div>
-    <div class="mb-3"><label class="text-xs text-on-surface-variant">Nama Playlist</label><input type="text" class="w-full px-3 py-2 text-sm border border-outline-variant rounded-lg mt-1" id="playlistNameInput"></div>
-    <div class="mb-3"><label class="text-xs text-on-surface-variant">Pilih Lagu dari Library</label><div id="playlistTrackSelect" class="mt-1.5 space-y-1 max-h-40 overflow-y-auto"></div></div>
-    <div class="mb-3"><label class="text-xs text-on-surface-variant">Urutan Putar</label><div id="playlistOrderList" class="mt-1.5 space-y-1 max-h-48 overflow-y-auto"></div></div>
-    <button class="w-full py-2 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="savePlaylist()">Simpan</button>
+<div class="modal-overlay" id="playlistModal"><div class="modal" style="max-width:640px; max-height:90vh; padding:24px">
+    <div class="flex justify-between items-center mb-4"><h3 class="text-base font-bold" id="playlistModalTitle">Buat Playlist</h3><button class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-xl leading-none" onclick="closeModal('playlistModal')">&times;</button></div>
+    <div class="mb-4"><label class="text-xs font-semibold text-on-surface-variant">Nama Playlist</label><input type="text" class="w-full px-3 py-2.5 text-sm border border-outline-variant rounded-lg mt-1.5" id="playlistNameInput" placeholder="Contoh: Musik Pagi"></div>
+    <div class="mb-4"><label class="text-xs font-semibold text-on-surface-variant">Pilih Lagu dari Library</label><div id="playlistTrackSelect" class="mt-1.5 space-y-1 max-h-56 overflow-y-auto border border-outline-variant rounded-lg p-2 bg-gray-50/50"></div></div>
+    <div class="mb-4"><label class="text-xs font-semibold text-on-surface-variant">Urutan Putar</label><div id="playlistOrderList" class="mt-1.5 space-y-1 max-h-64 overflow-y-auto border border-outline-variant rounded-lg p-2 bg-gray-50/30"></div></div>
+    <button class="w-full py-2.5 text-sm font-bold text-white rounded-lg" style="background:#50C878" onclick="savePlaylist()">Simpan Playlist</button>
 </div></div>
 
 <div class="modal-overlay" id="upacaraModal"><div class="modal">

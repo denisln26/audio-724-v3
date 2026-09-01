@@ -4,6 +4,27 @@ import { getSupabase, isSupabaseConfigured, authSignIn, authSignUp, authSignOut,
 function gregorianToHijri(gY,gM,gD){const jd=Math.floor(365.25*(gY+4716))+Math.floor(30.6001*(gM<3?gM+13:gM+1))+gD-1524.5;const l=Math.floor(jd-1948439.5+10632);const n=Math.floor((l-1)/10631);const r=l-10631*n+354;const j=Math.floor((10985-r)/5316)*Math.floor((50*r)/17719)+Math.floor(r/5670)*Math.floor((43*r)/15238);const rr=r-Math.floor((30-j)/15)*Math.floor((17719*j)/50)-Math.floor(j/16)*Math.floor((15238*j)/43)+29;const hm=Math.floor((24*rr)/709);const hd=rr-Math.floor((709*hm)/24);const hy=30*n+j-30;return{year:hy,month:hm,day:hd}}
 const HIJRI_M=['Muharram','Safar','Rabiul Awal','Rabiul Akhir','Jumadil Awal','Jumadil Akhir','Rajab','Syakban','Ramadhan','Syawal','Dzulqa\'dah','Dzulhijjah'];
 
+// ========== DARK MODE ==========
+function applyDarkMode(isDark){
+    document.documentElement.classList.toggle('dark', !!isDark);
+    const ic=$('darkModeIcon'); if(ic) ic.textContent=isDark?'light_mode':'dark_mode';
+    const btn=$('darkModeToggle'); if(btn) btn.title=isDark?'Light mode':'Dark mode';
+}
+function toggleDarkMode(){
+    const cur=document.documentElement.classList.contains('dark');
+    const next=!cur;
+    applyDarkMode(next);
+    try{ localStorage.setItem('mp_theme', next?'dark':'light'); }catch(e){}
+}
+window.toggleDarkMode=toggleDarkMode;
+(function initDarkMode(){
+    try{
+        const saved=localStorage.getItem('mp_theme');
+        if(saved==='dark'||saved==='light') applyDarkMode(saved==='dark');
+        else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches) applyDarkMode(true);
+    }catch(e){}
+})();
+
 // ========== UTILS ==========
 const $=id=>document.getElementById(id);
 const formatTime=s=>{if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60);return m+':'+(Math.floor(s%60)+'').padStart(2,'0')};
@@ -40,7 +61,36 @@ const audio=new Audio();
 const DAY_NAMES=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
 const PRAYER_NAMES=['Imsak','Subuh','Terbit','Dzuhur','Ashar','Maghrib','Isya'];
 const DEFAULT_PASSWORD='12345678';
-let settings={volume:70,shuffle:false,repeat:false,lat:-6.2088,lng:106.8456,timeOffset:0,prayerOffsets:{Imsak:0,Subuh:0,Terbit:0,Dzuhur:0,Ashar:0,Maghrib:0,Isya:0},adzanSubuhVolume:90,adzanUmumVolume:80,doaVolume:70,doaEnabled:false,playAfterAdzan:false,afterAdzanDelay:10,adzanSubuhTrackId:null,adzanUmumTrackId:null,doaTrackId:null,autoPlay:true};
+let settings={volume:70,shuffle:false,repeat:false,lat:-6.2088,lng:106.8456,timeOffset:0,prayerOffsets:{Imsak:0,Subuh:0,Terbit:0,Dzuhur:0,Ashar:0,Maghrib:0,Isya:0},adzanSubuhVolume:90,adzanUmumVolume:80,doaVolume:70,doaEnabled:false,playAfterAdzan:false,afterAdzanDelay:10,adzanSubuhTrackId:null,adzanUmumTrackId:null,doaTrackId:null,autoPlay:true,adzanVolumes:{Subuh:90,Dzuhur:80,Ashar:80,Maghrib:80,Isya:80},adzanTracks:{Subuh:null,Dzuhur:null,Ashar:null,Maghrib:null,Isya:null}};
+const ADZAN_PRAYERS=['Subuh','Dzuhur','Ashar','Maghrib','Isya'];
+function migrateAdzanSettings(){
+    if(!settings.adzanVolumes||typeof settings.adzanVolumes!=='object') settings.adzanVolumes={Subuh:90,Dzuhur:80,Ashar:80,Maghrib:80,Isya:80};
+    if(!settings.adzanTracks||typeof settings.adzanTracks!=='object') settings.adzanTracks={Subuh:null,Dzuhur:null,Ashar:null,Maghrib:null,Isya:null};
+    // Migrasi volume lama -> per-waktu
+    if(typeof settings.adzanSubuhVolume==='number'&&settings.adzanVolumes.Subuh==null) settings.adzanVolumes.Subuh=settings.adzanSubuhVolume;
+    if(typeof settings.adzanUmumVolume==='number'){
+        for(const p of ['Dzuhur','Ashar','Maghrib','Isya']) if(settings.adzanVolumes[p]==null||settings.adzanVolumes[p]===80) settings.adzanVolumes[p]=settings.adzanUmumVolume;
+    }
+    // Migrasi track lama -> per-waktu
+    if(settings.adzanSubuhTrackId&&!settings.adzanTracks.Subuh) settings.adzanTracks.Subuh=settings.adzanSubuhTrackId;
+    if(settings.adzanUmumTrackId){
+        for(const p of ['Dzuhur','Ashar','Maghrib','Isya']) if(!settings.adzanTracks[p]) settings.adzanTracks[p]=settings.adzanUmumTrackId;
+    }
+    // Default volume jika masih null
+    for(const p of ADZAN_PRAYERS){ if(settings.adzanVolumes[p]==null) settings.adzanVolumes[p]=p==='Subuh'?90:80; if(settings.adzanTracks[p]===undefined) settings.adzanTracks[p]=null; }
+}
+function getAdzanTrackIdForPrayer(name){
+    if(settings.adzanTracks&&settings.adzanTracks[name]) return settings.adzanTracks[name];
+    if(name==='Subuh'&&settings.adzanSubuhTrackId) return settings.adzanSubuhTrackId;
+    if(settings.adzanUmumTrackId) return settings.adzanUmumTrackId;
+    return null;
+}
+function getAdzanVolumeForPrayer(name){
+    if(settings.adzanVolumes&&typeof settings.adzanVolumes[name]==='number') return settings.adzanVolumes[name];
+    if(name==='Subuh'&&typeof settings.adzanSubuhVolume==='number') return settings.adzanSubuhVolume;
+    if(typeof settings.adzanUmumVolume==='number') return settings.adzanUmumVolume;
+    return 80;
+}
 
 // ========== INDEXEDDB (local media blobs, unlimited) ==========
 const MP_DB='musikpintar_db', MP_STORE='offline_blobs';
@@ -164,14 +214,30 @@ async function syncData(){
         try{
             const site=await loadSiteConfig();
             if(site){
-                if(typeof site.lat==='number'&&typeof site.lng==='number'){settings.lat=site.lat; settings.lng=site.lng;}
-                if(typeof site.time_offset==='number')settings.timeOffset=site.time_offset;
-                if(site.prayer_offsets&&typeof site.prayer_offsets==='object')settings.prayerOffsets={...settings.prayerOffsets,...site.prayer_offsets};
+                // Cegah timpa lokasi yang baru saja disimpan user jika site_config belum ter-update (penyebab "lokasi selalu berubah")
+                let shouldOverride=true;
+                try{
+                    const saved=LS.get('site_loc_saved',null);
+                    if(saved && typeof saved.lat==='number' && typeof saved.lng==='number' && Date.now()- (saved.t||0) < 300000){
+                        if(Math.abs(saved.lat - site.lat)>0.0001 || Math.abs(saved.lng - site.lng)>0.0001){
+                            shouldOverride=false;
+                            // coba push lagi lokasi yang baru disimpan
+                            saveSiteLocationNow().catch(()=>{});
+                        }
+                    }
+                }catch(e){}
+                if(shouldOverride){
+                    if(typeof site.lat==='number'&&typeof site.lng==='number'){settings.lat=site.lat; settings.lng=site.lng;}
+                    if(typeof site.time_offset==='number')settings.timeOffset=site.time_offset;
+                    if(site.prayer_offsets&&typeof site.prayer_offsets==='object')settings.prayerOffsets={...settings.prayerOffsets,...site.prayer_offsets};
+                }
             }
         }catch(e){console.error('Site config load error:',e)}
+        try{ migrateAdzanSettings(); }catch(e){}
         // Simpan ke cache lokal & hitung ulang jadwal sholat dengan lokasi final
         try{ LS.set('settings_'+currentUser.id,settings); }catch{}
         try{ prayerTimes=calcPrayerTimes(settings.lat,settings.lng); }catch{}
+        try{ refreshLocationDisplays(); }catch(e){}
         for(const t of tracks){
             if(t.type==='gdrive'){t.src=normalizeGdrive(t.src);continue}
             if(t.type==='offline'){
@@ -190,6 +256,8 @@ async function syncData(){
         schedules=LS.get('schedules_'+currentUser.id,[]);
         for(const t of tracks){if(t.type==='gdrive'){t.src=normalizeGdrive(t.src)}else if(t.type==='offline'&&(!t.src||t.src==='')){const b=await getBlob(t.id);if(b){t.src=URL.createObjectURL(b);t._localAvailable=true}else{t._localAvailable=false}}}
         settings=LS.get('settings_'+currentUser.id,settings);
+        try{ migrateAdzanSettings(); }catch(e){}
+        try{ refreshLocationDisplays(); }catch(e){}
         await updateAdzanAvailability();
         ensureTrackDurations();
     }
@@ -202,7 +270,9 @@ function saveLocal(){
     LS.set('settings_'+currentUser.id,settings);
     if(isSupabaseConfigured()){
         if(_saveTimer)clearTimeout(_saveTimer);
-        _saveTimer=setTimeout(async()=>{await Promise.allSettled([saveUserSettingsNow(),syncAllToSupabase()]);},500);
+        _saveTimer=setTimeout(async()=>{
+            await Promise.allSettled([saveUserSettingsNow(), saveSiteLocationNow(), syncAllToSupabase()]);
+        },500);
         return;
     }
     const safeTracks=tracks.map(t=>t.type==='offline'&&t.src&&t.src.startsWith('blob:')?{...t,src:'',_localAvailable:undefined}:t);
@@ -210,6 +280,19 @@ function saveLocal(){
     LS.set('playlists_'+currentUser.id,playlists);
     LS.set('upacaras_'+currentUser.id,upacaras);
     LS.set('schedules_'+currentUser.id,schedules);
+}
+// Tampilkan lokasi di berbagai tempat (topbar, dashboard jam digital, halaman Sholat)
+function refreshLocationDisplays(){
+    const lat=settings.lat, lng=settings.lng;
+    const coord=`${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+    const place=LS.get('locationName','')||LS.get('site_loc_name','');
+    const displayName=place||coord;
+    const isDefault=Math.abs(lat+6.2088)<0.01 && Math.abs(lng-106.8456)<0.01;
+    const label=place|| (isDefault?'Jakarta (default)':coord);
+    const cc=$('dashDigitalCoords'); if(cc) cc.textContent=coord;
+    const dl=$('dashDigitalLocation'); if(dl) dl.textContent=label;
+    const tl=$('topbarLocationText'); if(tl) tl.textContent=label;
+    const ls=$('locationStatus'); if(ls) ls.textContent='Lokasi: '+label+' • '+coord;
 }
 // Simpan pengaturan user ke database SEKARANG (tanpa debounce), hasilnya true/false.
 // Read-modify-write agar tidak menimpa pengaturan yang baru di-save dari device lain.
@@ -231,9 +314,10 @@ async function saveSiteLocationNow(){
     if(!isSupabaseConfigured())return true;
     try{
         const ok=await saveSiteConfig({ lat:settings.lat, lng:settings.lng, time_offset:settings.timeOffset, prayer_offsets:settings.prayerOffsets, updated_by: currentUser?.id||null });
-        if(!ok)console.warn('Site config sync gagal');
+        if(!ok){ console.warn('Site config sync gagal'); toast('Gagal simpan lokasi global — cek sql/site_config.sql & RLS'); }
+        else{ try{ LS.set('site_loc_saved',{lat:settings.lat,lng:settings.lng,t:Date.now()}); }catch(e){} }
         return !!ok;
-    }catch(e){console.warn('Site config sync error:',e);return false}
+    }catch(e){console.warn('Site config sync error:',e);toast('Gagal simpan lokasi global');return false}
 }
 // Sinkronkan penuh: semua data milik user ini (tracks/playlists/upacaras/schedules)
 // di-upsert ke database + hapus baris DB yang tidak lagi ada di lokal.
@@ -265,15 +349,37 @@ async function syncAllToSupabase(){
 // ========== SETTINGS ==========
 function saveSettings(){
     settings.timeOffset=parseInt($('timeOffset')?.value)||0;
-    if($('latInput')&&$('lngInput')){const la=parseFloat($('latInput').value),ln=parseFloat($('lngInput').value);if(!isNaN(la)&&!isNaN(ln)){settings.lat=la;settings.lng=ln;prayerTimes=calcPrayerTimes(la,ln);renderPrayerGrid();updateCountdown(new Date())}}
-    settings.adzanSubuhVolume=volValue('adsub');
-    settings.adzanUmumVolume=volValue('adumum');
+    if($('latInput')&&$('lngInput')){
+        const la=parseFloat($('latInput').value),ln=parseFloat($('lngInput').value);
+        if(!isNaN(la)&&!isNaN(ln)){
+            const changed=Math.abs(settings.lat-la)>0.00001 || Math.abs(settings.lng-ln)>0.00001;
+            settings.lat=la;settings.lng=ln;
+            if(changed) try{ LS.set('site_loc_saved',{lat:la,lng:ln,t:Date.now()}); }catch(e){}
+            prayerTimes=calcPrayerTimes(la,ln);renderPrayerGrid();updateCountdown(new Date()); refreshLocationDisplays();
+        }
+    }
+    // --- Adzan per waktu (5 waktu) dari Library ---
+    if(!settings.adzanVolumes) settings.adzanVolumes={}; if(!settings.adzanTracks) settings.adzanTracks={};
+    for(const p of ADZAN_PRAYERS){
+        const v=volValue('adzan_'+p);
+        if(!isNaN(v)) settings.adzanVolumes[p]=Math.max(0,Math.min(100,Math.round(v)));
+        const sel=$('adzanTrack_'+p);
+        if(sel) settings.adzanTracks[p]=sel.value||null;
+    }
+    // sinkronisasi ke field lama agar tidak rusak jika dibuka di versi lama
+    settings.adzanSubuhVolume=settings.adzanVolumes.Subuh;
+    settings.adzanUmumVolume=settings.adzanVolumes.Dzuhur;
+    settings.adzanSubuhTrackId=settings.adzanTracks.Subuh||null;
+    settings.adzanUmumTrackId=settings.adzanTracks.Dzuhur||settings.adzanTracks.Ashar||settings.adzanTracks.Maghrib||settings.adzanTracks.Isya||null;
+    // fallback baca field lama jika UI lama masih ada (backward compat)
+    const legacySubVol=$('adsub_n')?volValue('adsub'):null; if(legacySubVol!=null&&$('adzanTrack_Subuh')==null) settings.adzanVolumes.Subuh=legacySubVol;
+    const legacyUmumVol=$('adumum_n')?volValue('adumum'):null; if(legacyUmumVol!=null&&$('adzanTrack_Dzuhur')==null) for(const p of ['Dzuhur','Ashar','Maghrib','Isya']) settings.adzanVolumes[p]=legacyUmumVol;
+    const legacySubTrack=$('adzanSubuhTrack')?.value; if(legacySubTrack&&!settings.adzanTracks.Subuh) settings.adzanTracks.Subuh=legacySubTrack;
+    const legacyUmumTrack=$('adzanUmumTrack')?.value; if(legacyUmumTrack) for(const p of ['Dzuhur','Ashar','Maghrib','Isya']) if(!settings.adzanTracks[p]) settings.adzanTracks[p]=legacyUmumTrack;
     settings.doaVolume=volValue('doavol');
     settings.doaEnabled=$('doaEnabled')?.checked||false;
     settings.playAfterAdzan=$('playAfterAdzan')?.checked||false;
     settings.afterAdzanDelay=Math.max(0,parseInt($('afterAdzanDelay')?.value)||0);
-    settings.adzanSubuhTrackId=$('adzanSubuhTrack')?.value||null;
-    settings.adzanUmumTrackId=$('adzanUmumTrack')?.value||null;
     settings.doaTrackId=$('doaTrack')?.value||null;
     if($('doaEnabledLabel'))$('doaEnabledLabel').textContent=settings.doaEnabled?'Aktif':'Nonaktif';
     if($('playAfterAdzanLabel'))$('playAfterAdzanLabel').textContent=settings.playAfterAdzan?'Aktif':'Nonaktif';
@@ -285,6 +391,7 @@ async function saveSholatSettings(btn){
     const lbl=btn.querySelector('span');const old='Simpan Pengaturan Jadwal Sholat';
     btn.disabled=true;if(lbl)lbl.textContent='Menyimpan...';
     try{saveSettings()}catch(e){console.error('Save settings error:',e)}
+    try{ refreshLocationDisplays(); }catch(e){}
     const [dbOk, siteOk]=await Promise.all([saveUserSettingsNow(), saveSiteLocationNow()]);
     btn.disabled=false;
     const st=$('sholatSaveStatus');
@@ -312,7 +419,11 @@ function loadSettingsUI(){
     if($('latInput'))$('latInput').value=settings.lat;
     if($('lngInput'))$('lngInput').value=settings.lng;
     if($('timeOffset'))$('timeOffset').value=settings.timeOffset;
-    volSetValue('adsub',settings.adzanSubuhVolume);volSetValue('adumum',settings.adzanUmumVolume);volSetValue('doavol',settings.doaVolume);
+    try{ migrateAdzanSettings(); }catch(e){}
+    for(const p of ADZAN_PRAYERS) volSetValue('adzan_'+p, getAdzanVolumeForPrayer(p));
+    // legacy fallback
+    volSetValue('adsub',settings.adzanSubuhVolume);volSetValue('adumum',settings.adzanUmumVolume);
+    volSetValue('doavol',settings.doaVolume);
     if($('masterVolume'))$('masterVolume').value=settings.volume;
     if($('doaEnabled'))$('doaEnabled').checked=settings.doaEnabled;
     if($('doaEnabledLabel'))$('doaEnabledLabel').textContent=settings.doaEnabled?'Aktif':'Nonaktif';
@@ -323,9 +434,19 @@ function loadSettingsUI(){
     updateShuffleRepeatBtn();
 }
 function populateAdzanSelectors(){
-    const map=[['adzanSubuhTrack',settings.adzanSubuhTrackId],['adzanUmumTrack',settings.adzanUmumTrackId],['doaTrack',settings.doaTrackId]];
+    try{ migrateAdzanSettings(); }catch(e){}
     const ut=getUserTracks();
-    for(const[id,sel]of map){const el=$(id);if(!el)continue;el.innerHTML='<option value="">— pilih dari library —</option>'+ut.map(t=>`<option value="${t.id}">${t.name}${t.type==='online'?' (Online)':''}</option>`).join('');if(sel)el.value=sel;}
+    const opts='<option value="">— pilih dari library —</option>'+ut.map(t=>`<option value="${t.id}">${t.name}${t.type==='online'?' (Online)':''}${t.type==='gdrive'?' (GDrive)':''}</option>`).join('');
+    for(const p of ADZAN_PRAYERS){
+        const el=$('adzanTrack_'+p); if(!el) continue;
+        const sel=getAdzanTrackIdForPrayer(p);
+        el.innerHTML=opts; if(sel) el.value=sel;
+    }
+    // legacy selectors (jika masih ada di HTML lama)
+    const legacyMap=[['adzanSubuhTrack',settings.adzanSubuhTrackId],['adzanUmumTrack',settings.adzanUmumTrackId],['doaTrack',settings.doaTrackId]];
+    for(const[id,sel]of legacyMap){const el=$(id);if(!el)continue;el.innerHTML=opts;if(sel)el.value=sel;}
+    // doa track
+    const doaEl=$('doaTrack'); if(doaEl){ doaEl.innerHTML=opts; if(settings.doaTrackId) doaEl.value=settings.doaTrackId; }
 }
 function toggleShuffle(){settings.shuffle=!settings.shuffle;updateShuffleRepeatBtn();saveLocal()}
 window.toggleShuffle=toggleShuffle;
@@ -345,13 +466,15 @@ function showPage(page){
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('nav-active'));
     const el=$('page-'+page);if(el)el.classList.add('active');
     const nav=document.querySelector(`.nav-item[data-page="${page}"]`);if(nav)nav.classList.add('nav-active');
+    // Topbar titik lokasi hanya tampil di Dashboard
+    const tlb=$('topbarLocation'); if(tlb){ if(page==='dashboard'){ tlb.classList.remove('hidden'); tlb.classList.add('flex'); } else { tlb.classList.add('hidden'); tlb.classList.remove('flex'); } }
     if(page==='library')renderTracks();
     if(page==='playlist')renderPlaylists();
     if(page==='upacara'){activeUpacaraId=null;renderUpacaras();}
     if(page==='jadwal')renderSchedules();
     if(page==='sholat')renderPrayerGrid();
     if(page==='admin')renderAdmin();
-    if(page==='dashboard')renderDashboard();
+    if(page==='dashboard'){ renderDashboard(); refreshLocationDisplays(); }
     toggleMobileMenu(false); // tutup drawer di mobile setelah pindah halaman
 }
 window.showPage=showPage;
@@ -368,9 +491,15 @@ window.toggleMobileMenu=open=>{
 // ========== CLOCK ==========
 function updateClock(){
     const now=new Date();
-    const hc=$('headerClock');if(hc)hc.textContent=now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0'), ss=String(now.getSeconds()).padStart(2,'0');
+    // Top panel jam sudah dihapus per permintaan user (17.42.47 Sel, 1 Sep) — biarkan jika elemen masih ada (backward compat)
+    const hc=$('headerClock');if(hc)hc.innerHTML=`${hh}:${mm}<span style="font-size:0.7em;opacity:0.6">.${ss}</span>`;
     const hd=$('headerDate');if(hd)hd.textContent=now.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'});
     const dd=$('dashDate');if(dd)dd.textContent=now.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    // Jam digital card di dashboard — format 17:41.25 detik kecil
+    const ddc=$('dashDigitalClock'); if(ddc) ddc.innerHTML=`${hh}:${mm}<span style="font-size:0.55em;opacity:0.65;font-weight:400;vertical-align:super;margin-left:2px">.${ss}</span>`;
+    const ddd=$('dashDigitalDate'); if(ddd) ddd.textContent=now.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const ddh=$('dashDigitalHijri'); if(ddh){ const hd2=gregorianToHijri(now.getFullYear(),now.getMonth()+1,now.getDate()); ddh.textContent=`${hd2.day} ${HIJRI_M[hd2.month-1]} ${hd2.year} H`; }
     const h=now.getHours();let g='Selamat Datang';if(h>=4&&h<12)g='Selamat Pagi';else if(h>=12&&h<17)g='Selamat Siang';else if(h>=17&&h<20)g='Selamat Sore';else g='Selamat Malam';
     const gt=$('greetingText');if(gt)gt.textContent=`${g}, ${currentUser?.name||''}`;
     const hi=$('hijriDate');if(hi){const hd2=gregorianToHijri(now.getFullYear(),now.getMonth()+1,now.getDate());hi.textContent=`${hd2.day} ${HIJRI_M[hd2.month-1]} ${hd2.year} H`;}
@@ -431,17 +560,41 @@ function updateCountdown(now){
     for(const[n,time]of Object.entries(prayerTimes)){const[hh,mm]=time.split(':').map(Number);const p=hh*3600+mm*60;if(p>nowSec&&p<nextSec){nextSec=p;nextN=n}}
     if(nextSec===Infinity)nextSec=24*3600;
     const d=nextSec-nowSec;
-    const cd=$('countdownDisplay');if(cd)cd.textContent=`${String(Math.floor(d/3600)).padStart(2,'0')}:${String(Math.floor((d%3600)/60)).padStart(2,'0')}:${String(d%60).padStart(2,'0')}`;
+    const cd=$('countdownDisplay');if(cd){
+        const hh=String(Math.floor(d/3600)).padStart(2,'0'), mm=String(Math.floor((d%3600)/60)).padStart(2,'0'), ss=String(d%60).padStart(2,'0');
+        const html=`${hh}<span class="cd-sep">:</span>${mm}<span class="cd-sec">.${ss}</span>`;
+        if(cd.innerHTML!==html){ cd.innerHTML=html; cd.classList.remove('tick'); void cd.offsetWidth; cd.classList.add('tick'); setTimeout(()=>cd.classList.remove('tick'),400); }
+    }
     const cl=$('countdownLabel');if(cl)cl.textContent=`hingga ${nextN} jam ${prayerTimes[nextN]||'--:--'}`;
     const nb=$('nextPrayerBadge');if(nb)nb.textContent=nextN||'--';
 }
-function autoDetectLocation(){if(!navigator.geolocation){toast('Tidak didukung');return}toast('Mendeteksi...');navigator.geolocation.getCurrentPosition(async p=>{settings.lat=p.coords.latitude;settings.lng=p.coords.longitude;saveLocal();saveSiteLocationNow();if($('latInput'))$('latInput').value=settings.lat;if($('lngInput'))$('lngInput').value=settings.lng;prayerTimes=calcPrayerTimes(settings.lat,settings.lng);renderPrayerGrid();let place=`${settings.lat.toFixed(4)}, ${settings.lng.toFixed(4)}`;try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${settings.lat}&longitude=${settings.lng}&localityLanguage=id`);const d=await r.json();place=d.city||d.locality||d.principalSubdivision||place;if(d.locality&&d.city&&d.city!==d.locality)place=d.locality+', '+d.city;else if(d.city)place=d.city;else if(d.locality)place=d.locality}catch(e){}if($('locationStatus'))$('locationStatus').textContent='Lokasi: '+place;toast('Lokasi terdeteksi: '+place+' — berlaku untuk semua device')},e=>toast('Gagal: '+e.message))}
+function autoDetectLocation(){if(!navigator.geolocation){toast('Tidak didukung');return}toast('Mendeteksi...');navigator.geolocation.getCurrentPosition(async p=>{
+    settings.lat=p.coords.latitude;settings.lng=p.coords.longitude;
+    try{ LS.set('site_loc_saved',{lat:settings.lat,lng:settings.lng,t:Date.now()}); }catch(e){}
+    saveLocal(); saveSiteLocationNow(); await saveUserSettingsNow();
+    if($('latInput'))$('latInput').value=settings.lat;if($('lngInput'))$('lngInput').value=settings.lng;
+    prayerTimes=calcPrayerTimes(settings.lat,settings.lng);renderPrayerGrid();
+    let place=`${settings.lat.toFixed(4)}, ${settings.lng.toFixed(4)}`;
+    try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${settings.lat}&longitude=${settings.lng}&localityLanguage=id`);const d=await r.json();place=d.city||d.locality||d.principalSubdivision||place;if(d.locality&&d.city&&d.city!==d.locality)place=d.locality+', '+d.city;else if(d.city)place=d.city;else if(d.locality)place=d.locality}catch(e){}
+    try{ LS.set('locationName',place); LS.set('site_loc_name',place); }catch(e){}
+    refreshLocationDisplays();
+    toast('Lokasi terdeteksi: '+place+' — berlaku untuk semua device')
+},e=>toast('Gagal: '+e.message))}
 window.autoDetectLocation=autoDetectLocation;
 
 // ========== ADZAN ==========
 // Semua audio adzan/doa bersumber dari LIBRARY. Yang tersimpan ke DATABASE hanya ID/judul track-nya.
-const getAdzanKind=t=>t==='subuh'?'subuh':t==='umum'?'umum':'doa';
-const getAdzanTrackId=k=>k==='subuh'?settings.adzanSubuhTrackId:k==='umum'?settings.adzanUmumTrackId:settings.doaTrackId;
+const getAdzanKind=t=>{
+    if(['Subuh','Dzuhur','Ashar','Maghrib','Isya'].includes(t)) return t;
+    return t==='subuh'?'Subuh':t==='umum'?'Dzuhur':t==='doa'?'doa':t;
+};
+const getAdzanTrackId=k=>{
+    if(['Subuh','Dzuhur','Ashar','Maghrib','Isya'].includes(k)) return getAdzanTrackIdForPrayer(k);
+    if(k==='doa') return settings.doaTrackId;
+    if(k==='subuh') return getAdzanTrackIdForPrayer('Subuh');
+    if(k==='umum') return getAdzanTrackIdForPrayer('Dzuhur');
+    return null;
+};
 // Bersihkan sisa file adzan lama (base64) dari localStorage versi sebelumnya,
 // agar kuota localStorage tidak penuh dan pengaturan tetap bisa tersimpan ke database.
 let _legacyAdzanCleaned=false;
@@ -468,16 +621,17 @@ async function resolveAdzan(kind){
 }
 async function resolveAdzanSrc(kind){return(await resolveAdzan(kind)).src}
 // ========== PENGAMAN BATAS JADWAL ==========
-// Musik milik jadwal yang melewati window-nya dimatikan otomatis:
-//   Loop ON    -> berhenti TEPAT pukul "Jam Selesai"
-//   Tanpa loop -> tetap berhenti ketika durasi musik habis (perilaku lama)
-// Playlist yg dimainkan MANUAL oleh pengguna tidak diganggu selama 2 jam
-// sejak sentuhan manual terakhir (manualOverrideUntil).
+// Skenario sesuai permintaan:
+//   1x (loop OFF) -> putar SAMPAI LAGU SELESAI, tidak dipotong jam (mis. Doa 07:30 durasi 2mnt -> 07:32)
+//   Loop ON      -> putar loop dan berhenti TEPAT pukul "Jam Selesai" (mis. 07:45-09:59 -> stop 09:59)
+// Semua skenario tetap berhenti 5 menit sebelum adzan (ditangani checkPrayerTime).
 function enforceScheduleWindows(now){
     if(!isPlaying||!activeScheduleId)return;
-    if(manualOverrideUntil&&Date.now()<manualOverrideUntil)return;
     const s=schedules.find(x=>x.id===activeScheduleId);
     if(!s)return;
+    // 1x: jangan paksa stop berdasarkan jam — biarkan lagu selesai natural via audio.onended -> nextTrack().
+    // Hanya jadwal Loop yang dipotong tepat di Jam Selesai.
+    if(s.loop===false) return;
     const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
     const win=scheduleWindow(s);
     if(s.enabled&&s.days.includes(td)&&nm>=win.sM&&nm<win.eM)return;
@@ -491,24 +645,32 @@ function enforceScheduleWindows(now){
 
 function updateAdzanStatus(){
     const s=$('adzanStatus');if(!s)return;
-    const rows=[['subuh','Adzan Subuh'],['umum','Adzan Umum'],['doa','Doa']];
+    try{ migrateAdzanSettings(); }catch(e){}
+    const rows=[...ADZAN_PRAYERS.map(p=>[p,'Adzan '+p]), ['doa','Doa']];
     s.innerHTML=rows.map(([k,label])=>{
         const id=getAdzanTrackId(k);
         if(!id)return '<span style="color:#94a3b8">'+label+': belum dipilih dari library</span>';
         const t=tracks.find(x=>x.id===id);
-        if(!t||(t.type!=='online'&&t._localAvailable===false))return '<span style="color:#ef4444">'+label+': '+(t?t.name+' &mdash; ':'')+'file lokal tidak tersedia di perangkat ini</span>';
-        return '<span style="color:#16a34a">'+label+': '+((t&&t.name)||'dari library')+(t&&t.type==='online'?' (Online)':'')+'</span>';
+        if(!t) return '<span style="color:#94a3b8">'+label+': belum dipilih dari library</span>';
+        if(t.type!=='online'&&t.type!=='gdrive'&&t._localAvailable===false) return '<span style="color:#ef4444">'+label+': '+t.name+' &mdash; file lokal tidak tersedia di perangkat ini</span>';
+        const vol=k==='doa'?settings.doaVolume:getAdzanVolumeForPrayer(k);
+        const tag=t.type==='online'?' (Online)':t.type==='gdrive'?' (GDrive)':'';
+        return '<span style="color:#16a34a">'+label+': '+t.name+tag+' • '+vol+'%</span>';
     }).join('<br>');
 }
 let _previewAudio=null;
 async function previewAdzan(type){
     if(_previewAudio){_previewAudio.pause();_previewAudio=null;toast('Stop preview');return}
     const kind=getAdzanKind(type);
-    const vol=(type==='subuh'?settings.adzanSubuhVolume:type==='umum'?settings.adzanUmumVolume:settings.doaVolume)/100;
+    let vol=0.8;
+    if(kind==='doa') vol=settings.doaVolume/100;
+    else if(['Subuh','Dzuhur','Ashar','Maghrib','Isya'].includes(kind)) vol=getAdzanVolumeForPrayer(kind)/100;
+    else if(kind==='Subuh') vol=getAdzanVolumeForPrayer('Subuh')/100;
+    else vol=getAdzanVolumeForPrayer('Dzuhur')/100;
     const r=await resolveAdzan(kind);
     if(r.status==='none'){toast('Belum ada file / belum pilih dari library');return}
     if(!r.src){toast('File lokal tidak tersedia');updateAdzanStatus();return}
-    _previewAudio=new Audio(r.src);_previewAudio.volume=vol;_previewAudio.play();toast('Preview (klik Test lagi untuk stop)');
+    _previewAudio=new Audio(r.src);_previewAudio.volume=vol;_previewAudio.play();toast('Preview '+kind+' (klik Test lagi untuk stop)');
     _previewAudio.onended=()=>{_previewAudio=null};
 }
 window.previewAdzan=previewAdzan;
@@ -551,12 +713,12 @@ function getCurrentScheduleEndMs(){
     return endMs;
 }
 function playAdzanForPrayer(name){
-    const kind=name==='Subuh'?'subuh':'umum';
+    const kind=name; // Subuh/Dzuhur/Ashar/Maghrib/Isya langsung
     resolveAdzan(kind).then(r=>{
-        if(r.status==='localMissing'){toast('File lokal tidak tersedia ('+(name==='Subuh'?'Adzan Subuh':'Adzan')+')');return}
-        if(r.status!=='ok'||!r.src)return;
+        if(r.status==='localMissing'){toast('File lokal tidak tersedia (Adzan '+name+')');return}
+        if(r.status!=='ok'||!r.src){toast('Adzan '+name+' belum dipilih dari Library');return}
         const a=new Audio(r.src);
-        a.volume=(name==='Subuh'?settings.adzanSubuhVolume:settings.adzanUmumVolume)/100;
+        a.volume=getAdzanVolumeForPrayer(name)/100;
         a.onended=()=>{
             if(!settings.doaEnabled)return;
             resolveAdzanSrc('doa').then(ds=>{
@@ -885,7 +1047,16 @@ function updatePlayPauseBtn(){
     document.querySelectorAll('[data-sched-icon]').forEach(el=>{el.textContent=(isPlaying&&activeScheduleId===el.getAttribute('data-sched-icon'))?'pause':'play_arrow'});
     renderUpacaras();
 }
-function nextTrack(){if(currentPlaylistIndex<currentPlaylist.length-1){if(stopAfterCurrentSong){isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras();return}currentPlaylistIndex++;pausedPosition=0;loadAndPlay()}else if(settings.repeat||loopPlaylist){currentPlaylistIndex=0;pausedPosition=0;loadAndPlay()}else{isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras()}}
+function nextTrack(){
+    if(currentPlaylistIndex<currentPlaylist.length-1){
+        if(stopAfterCurrentSong){isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras();return}
+        currentPlaylistIndex++;pausedPosition=0;loadAndPlay()
+    }else if(!stopAfterPlaylist&&!stopAfterCurrentSong&&(settings.repeat||loopPlaylist)){
+        currentPlaylistIndex=0;pausedPosition=0;loadAndPlay()
+    }else{
+        isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;updatePlayPauseBtn();renderUpacaras()
+    }
+}
 window.nextTrack=nextTrack;
 function prevTrack(){if(audio.currentTime>3){audio.currentTime=0;return}if(currentPlaylistIndex>0){currentPlaylistIndex--;pausedPosition=0;loadAndPlay()}}
 window.prevTrack=prevTrack;
@@ -1248,8 +1419,15 @@ function renderSchedules(){
     const tg=$('autoPlayToggle');if(tg)tg.checked=autoPlayEnabled;
     const us=currentUser?.role==='admin'?schedules:schedules.filter(s=>s.owner===currentUser.id);
     if(!us.length){c.innerHTML='<div class="glass-card rounded-xl p-6 text-center text-on-surface-variant"><p class="text-xs">Belum ada jadwal</p></div>';return}
+    const sorted=[...us].sort((a,b)=>{
+        const[ah,am]=(a.start_time||'00:00').split(':').map(Number); const[bh,bm]=(b.start_time||'00:00').split(':').map(Number);
+        const d=(ah*60+am)-(bh*60+bm); if(d!==0) return d;
+        const[ae,ae2]=(a.end_time||a.start_time||'00:00').split(':').map(Number); const[be,be2]=(b.end_time||b.start_time||'00:00').split(':').map(Number);
+        const de=(ae*60+ae2)-(be*60+be2); if(de!==0) return de;
+        return (a.title||'').localeCompare(b.title||'');
+    });
     const now=new Date();
-    c.innerHTML=us.map(s=>{
+    c.innerHTML=sorted.map(s=>{
         const win=scheduleWindow(s);
         const nm=now.getHours()*60+now.getMinutes();
         const active=s.enabled&&s.days.includes(now.getDay())&&nm>=win.sM&&nm<win.eM;
@@ -1288,7 +1466,11 @@ function checkAutoPlay(now){
     if(_bootSilent&&Date.now()-_bootTime<30000)return;
     if(!autoPlayEnabled||isPrayerTime||Date.now()<silencedUntil)return;
     const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
-    for(const s of schedules){
+    const ordered=[...schedules].sort((a,b)=>{
+        const[ah,am]=(a.start_time||'00:00').split(':').map(Number); const[bh,bm]=(b.start_time||'00:00').split(':').map(Number);
+        return (ah*60+am)-(bh*60+bm);
+    });
+    for(const s of ordered){
         if(!s.enabled||!s.days.includes(td))continue;
         const win=scheduleWindow(s);
         if(nm<win.sM||nm>=win.eM)continue;
@@ -1401,9 +1583,16 @@ function setStorageRing(ratio,color){
 function renderStorageCard(){
     const ut=getUserTracks();
     const onlineMB=ut.filter(t=>t.type==='online').reduce((a,t)=>a+(parseFloat(t.size)||0),0);
-    const localMB=ut.filter(t=>t.type!=='online').reduce((a,t)=>a+(parseFloat(t.size)||0),0);
+    const localMB=ut.filter(t=>t.type==='offline').reduce((a,t)=>a+(parseFloat(t.size)||0),0);
+    const gdriveTracks=ut.filter(t=>t.type==='gdrive');
+    const gdriveCount=gdriveTracks.length;
+    const gdriveMB=gdriveTracks.reduce((a,t)=>a+(parseFloat(t.size)||0),0);
     if($('storageLocalSize'))$('storageLocalSize').textContent=localMB.toFixed(1)+' MB';
     if($('storageOnlineSize'))$('storageOnlineSize').textContent=onlineMB.toFixed(1)+' MB';
+    if($('storageGdriveSize')){
+        if(gdriveMB>0) $('storageGdriveSize').textContent=gdriveCount+' file • '+gdriveMB.toFixed(1)+' MB';
+        else $('storageGdriveSize').textContent=gdriveCount+' file';
+    }
     const onlineMode=isSupabaseConfigured()&&currentUser&&(currentUser.storage_limit||0)>0;
     let usedMB=0;
     if(onlineMode){
@@ -1433,8 +1622,11 @@ function renderDashboard(){
     renderStorageCard();
     const c=$('activeSchedulesDash');if(!c)return;
     const now=new Date(),nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
-    const isActive=s=>{if(!s.enabled||!s.days.includes(td))return false;const[sh,sm]=s.start_time.split(':').map(Number),[eh,em]=s.end_time.split(':').map(Number);return nm>=sh*60+sm&&nm<eh*60+em};
-    const as=schedules.filter(isActive);
+    const isActive=s=>{if(!s.enabled||!s.days.includes(td))return false;const win=scheduleWindow(s);return nm>=win.sM&&nm<win.eM};
+    const as=schedules.filter(isActive).sort((a,b)=>{
+        const[ah,am]=(a.start_time||'00:00').split(':').map(Number); const[bh,bm]=(b.start_time||'00:00').split(':').map(Number);
+        return (ah*60+am)-(bh*60+bm);
+    });
     const srcLabel=s=>{
         if(s.source_type==='single'){const t=tracks.find(t=>t.id===s.source_id);return t?t.name:'Lagu'}
         if(s.source_type==='playlist'){const p=playlists.find(p=>p.id===s.source_id);return p?'Playlist: '+p.name:'Playlist'}
@@ -1470,11 +1662,14 @@ function playScheduleNow(id){
     else{const u=upacaras.find(u=>u.id===s.source_id);if(u)sourceTracks=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean)}
     sourceTracks=sourceTracks.filter(x=>x.type==='online'||x._localAvailable!==false);
     if(!sourceTracks.length){toast('File lokal tidak tersedia / daftar kosong');return}
-    stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
+    // Hormati flag loop jadwal: 1x -> stop setelah playlist, Loop -> loop hingga jam selesai
+    loopPlaylist=!!s.loop;stopAfterPlaylist=!s.loop;stopAfterCurrentSong=false;
+    activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
     isLibraryPlaying=false;
-    manualOverrideUntil=Date.now()+7200000;
-    currentPlaylist=settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):[...sourceTracks];
-    currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+s.title);
+    // Jangan blok enforceScheduleWindows dengan 2 jam override untuk jadwal — jadwal harus tetap stop tepat di Jam Selesai
+    manualOverrideUntil=0;
+    currentPlaylist=s.loop?(settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):sourceTracks):[...sourceTracks];
+    currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+s.title+(s.loop?' (Loop)':' (1x)'));
 }
 function toggleSchedulePlay(id){
     if(activeScheduleId===id&&currentPlaylist.length>0&&currentPlaylistIndex>=0){togglePlayPause();return}
