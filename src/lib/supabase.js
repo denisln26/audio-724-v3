@@ -104,3 +104,19 @@ export async function loadUserSettings(userId) {
     const { data } = await sb.from('users').select('settings').eq('id', userId).single();
     return data?.settings || null;
 }
+
+// ========== SITE CONFIG (satu lokasi untuk semua device) ==========
+export async function loadSiteConfig() {
+    const sb = getSupabase();
+    if (!sb) return null;
+    const { data, error } = await sb.from('site_config').select('*').eq('id', 1).single();
+    if (error) return null;
+    return data;
+}
+export async function saveSiteConfig(patch) {
+    const sb = getSupabase();
+    if (!sb) return false;
+    const payload = { id: 1, ...patch, updated_at: new Date().toISOString() };
+    const { error } = await sb.from('site_config').upsert(payload, { onConflict: 'id' });
+    return !error;
+}

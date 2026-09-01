@@ -1,35 +1,8 @@
-import { getSupabase, isSupabaseConfigured, authSignIn, authSignUp, authSignOut, authUpdatePassword, authGetUser, fetchUserProfile, upsertUserProfile, fetchAllUsers, updateUserProfile, deleteUserProfile, saveUserSettings, loadUserSettings } from './lib/supabase.js';
+import { getSupabase, isSupabaseConfigured, authSignIn, authSignUp, authSignOut, authUpdatePassword, authGetUser, fetchUserProfile, upsertUserProfile, fetchAllUsers, updateUserProfile, deleteUserProfile, saveUserSettings, loadUserSettings, loadSiteConfig, saveSiteConfig } from './lib/supabase.js';
 
 // ========== HIJRI ==========
 function gregorianToHijri(gY,gM,gD){const jd=Math.floor(365.25*(gY+4716))+Math.floor(30.6001*(gM<3?gM+13:gM+1))+gD-1524.5;const l=Math.floor(jd-1948439.5+10632);const n=Math.floor((l-1)/10631);const r=l-10631*n+354;const j=Math.floor((10985-r)/5316)*Math.floor((50*r)/17719)+Math.floor(r/5670)*Math.floor((43*r)/15238);const rr=r-Math.floor((30-j)/15)*Math.floor((17719*j)/50)-Math.floor(j/16)*Math.floor((15238*j)/43)+29;const hm=Math.floor((24*rr)/709);const hd=rr-Math.floor((709*hm)/24);const hy=30*n+j-30;return{year:hy,month:hm,day:hd}}
 const HIJRI_M=['Muharram','Safar','Rabiul Awal','Rabiul Akhir','Jumadil Awal','Jumadil Akhir','Rajab','Syakban','Ramadhan','Syawal','Dzulqa\'dah','Dzulhijjah'];
-
-// ========== STATE ==========
-let currentUser=null, tracks=[], playlists=[], upacaras=[], schedules=[];
-let currentPlaylist=[], currentPlaylistIndex=-1, isPlaying=false, isPrayerTime=false, autoPlayEnabled=false, pausedPosition=0, stopAfterPlaylist=false, loopPlaylist=false, stopAfterCurrentSong=false, silencedUntil=0;
-let adzanPlayedToday={};
-let prayerTimes={}, editingId=null, editingType='', editingPlaylistIds=[];
-let activeScheduleId=null, manualPauseKey=null, activeScheduleVolumePct=100;
-let isIndoRayaActive=false;
-let irAudio=null,irAudioUrl=null,irResumeTimer=null,irCooldownUntil=0;
-// true saat pengguna sedang memutar lagu dari Library (playTrack/playAllTracks).
-// Saat lagu berhenti, jangan lanjut ke lagu berikutnya — cukup berhenti.
-let isLibraryPlaying=false;
-// irBlockUntil: batas waktu (ms) sampai saat musik otomatis JANGAN boleh diputar ulang
-//   (dipakai untuk fase "diam" 1 menit sebelum IDR + jeda 1 menit setelah IDR selesai).
-// irSetupSched: jadwal IDR yg sedang dalam fase diam, agar musik hanya dihentikan sekali.
-let irBlockUntil=0,irSetupSched=null;
-let manualOverrideUntil=0;
-let _dashTick=0;
-// Boot silent: saat auto-refresh tengah malam, jangan auto-putar musik selama beberapa detik agar refresh tidak membunyikan apa pun
-let _bootSilent=false,_bootTime=Date.now();
-// Bacaan auto-play YouTube host hanya aktif saat perintah 'play' (bukan saat 'load'), agar tidak auto-putar sebelum admin menekan Play
-let _hsWantPlay=false;
-const audio=new Audio();
-const DAY_NAMES=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-const PRAYER_NAMES=['Imsak','Subuh','Terbit','Dzuhur','Ashar','Maghrib','Isya'];
-const DEFAULT_PASSWORD='12345678';
-let settings={volume:70,shuffle:false,repeat:false,lat:-6.2088,lng:106.8456,timeOffset:0,prayerOffsets:{Imsak:0,Subuh:0,Terbit:0,Dzuhur:0,Ashar:0,Maghrib:0,Isya:0},adzanSubuhVolume:90,adzanUmumVolume:80,doaVolume:70,doaEnabled:false,playAfterAdzan:false,afterAdzanDelay:10,adzanSubuhTrackId:null,adzanUmumTrackId:null,doaTrackId:null,indoRayaTrackId:null,autoPlay:true};
 
 // ========== UTILS ==========
 const $=id=>document.getElementById(id);
@@ -46,6 +19,28 @@ const LS={
     set:(k,v)=>{try{localStorage.setItem('mp_'+k,JSON.stringify(v));return true}catch(e){console.warn('LocalStorage tidak bisa menyimpan (kuota penuh?):',k,e);return false}},
     del:k=>{try{localStorage.removeItem('mp_'+k)}catch(e){}}
 };
+
+// ========== STATE ==========
+let currentUser=null, tracks=[], playlists=[], upacaras=[], schedules=[];
+let currentPlaylist=[], currentPlaylistIndex=-1, isPlaying=false, isPrayerTime=false, autoPlayEnabled=false, pausedPosition=0, stopAfterPlaylist=false, loopPlaylist=false, stopAfterCurrentSong=false, silencedUntil=0;
+let adzanPlayedToday={};
+try{ if(LS.get('adzanDay','')===new Date().toDateString()){const ap=LS.get('adzanPlayed',{})||{};if(typeof ap==='object'&&ap!==null)adzanPlayedToday=ap;} }catch{}
+let prayerTimes={}, editingId=null, editingType='', editingPlaylistIds=[];
+let activeScheduleId=null, manualPauseKey=null, activeScheduleVolumePct=100;
+// true saat pengguna sedang memutar lagu dari Library (playTrack/playAllTracks).
+// Saat lagu berhenti, jangan lanjut ke lagu berikutnya — cukup berhenti.
+let isLibraryPlaying=false;
+let manualOverrideUntil=0;
+let _dashTick=0;
+// Boot silent: saat auto-refresh tengah malam, jangan auto-putar musik selama beberapa detik agar refresh tidak membunyikan apa pun
+let _bootSilent=false,_bootTime=Date.now();
+// Bacaan auto-play YouTube host hanya aktif saat perintah 'play' (bukan saat 'load'), agar tidak auto-putar sebelum admin menekan Play
+let _hsWantPlay=false;
+const audio=new Audio();
+const DAY_NAMES=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+const PRAYER_NAMES=['Imsak','Subuh','Terbit','Dzuhur','Ashar','Maghrib','Isya'];
+const DEFAULT_PASSWORD='12345678';
+let settings={volume:70,shuffle:false,repeat:false,lat:-6.2088,lng:106.8456,timeOffset:0,prayerOffsets:{Imsak:0,Subuh:0,Terbit:0,Dzuhur:0,Ashar:0,Maghrib:0,Isya:0},adzanSubuhVolume:90,adzanUmumVolume:80,doaVolume:70,doaEnabled:false,playAfterAdzan:false,afterAdzanDelay:10,adzanSubuhTrackId:null,adzanUmumTrackId:null,doaTrackId:null,autoPlay:true};
 
 // ========== INDEXEDDB (local media blobs, unlimited) ==========
 const MP_DB='musikpintar_db', MP_STORE='offline_blobs';
@@ -165,6 +160,18 @@ async function syncData(){
             const dbSettings=await loadUserSettings(currentUser.id);
             if(dbSettings&&Object.keys(dbSettings).length)settings={...settings,...dbSettings};
         }catch(e){console.error('Settings load error:',e)}
+        // Lokasi sholat: satu untuk semua device (site_config id=1) — override per-user
+        try{
+            const site=await loadSiteConfig();
+            if(site){
+                if(typeof site.lat==='number'&&typeof site.lng==='number'){settings.lat=site.lat; settings.lng=site.lng;}
+                if(typeof site.time_offset==='number')settings.timeOffset=site.time_offset;
+                if(site.prayer_offsets&&typeof site.prayer_offsets==='object')settings.prayerOffsets={...settings.prayerOffsets,...site.prayer_offsets};
+            }
+        }catch(e){console.error('Site config load error:',e)}
+        // Simpan ke cache lokal & hitung ulang jadwal sholat dengan lokasi final
+        try{ LS.set('settings_'+currentUser.id,settings); }catch{}
+        try{ prayerTimes=calcPrayerTimes(settings.lat,settings.lng); }catch{}
         for(const t of tracks){
             if(t.type==='gdrive'){t.src=normalizeGdrive(t.src);continue}
             if(t.type==='offline'){
@@ -195,7 +202,7 @@ function saveLocal(){
     LS.set('settings_'+currentUser.id,settings);
     if(isSupabaseConfigured()){
         if(_saveTimer)clearTimeout(_saveTimer);
-        _saveTimer=setTimeout(()=>_syncToSupabase(),500);
+        _saveTimer=setTimeout(async()=>{await Promise.allSettled([saveUserSettingsNow(),syncAllToSupabase()]);},500);
         return;
     }
     const safeTracks=tracks.map(t=>t.type==='offline'&&t.src&&t.src.startsWith('blob:')?{...t,src:'',_localAvailable:undefined}:t);
@@ -205,59 +212,93 @@ function saveLocal(){
     LS.set('schedules_'+currentUser.id,schedules);
 }
 // Simpan pengaturan user ke database SEKARANG (tanpa debounce), hasilnya true/false.
+// Read-modify-write agar tidak menimpa pengaturan yang baru di-save dari device lain.
 async function saveUserSettingsNow(){
     if(!currentUser||!isSupabaseConfigured())return true;
     if(_saveTimer){clearTimeout(_saveTimer);_saveTimer=null}
     try{
-        const ok=await saveUserSettings(currentUser.id,settings);
+        let toSave=settings;
+        try{
+            const existing=await loadUserSettings(currentUser.id);
+            if(existing&&typeof existing==='object') toSave={...existing, ...settings};
+        }catch{}
+        const ok=await saveUserSettings(currentUser.id,toSave);
         if(!ok)console.error('Settings sync gagal (cek kolom users.settings / RLS)');
         return !!ok;
     }catch(e){console.error('Settings sync error:',e);return false}
 }
-async function _syncToSupabase(){await saveUserSettingsNow()}
+async function saveSiteLocationNow(){
+    if(!isSupabaseConfigured())return true;
+    try{
+        const ok=await saveSiteConfig({ lat:settings.lat, lng:settings.lng, time_offset:settings.timeOffset, prayer_offsets:settings.prayerOffsets, updated_by: currentUser?.id||null });
+        if(!ok)console.warn('Site config sync gagal');
+        return !!ok;
+    }catch(e){console.warn('Site config sync error:',e);return false}
+}
+// Sinkronkan penuh: semua data milik user ini (tracks/playlists/upacaras/schedules)
+// di-upsert ke database + hapus baris DB yang tidak lagi ada di lokal.
+async function syncAllToSupabase(){
+    if(!currentUser||!isSupabaseConfigured())return;
+    try{
+        const sb=getSupabase();
+        const uid=currentUser.id;
+        const owned=id=>!id||id===uid;
+        const mkTracks=tracks.filter(t=>owned(t.owner)).map(t=>({id:t.id,name:t.name,type:t.type,src:t.type==='offline'?'':(t.src||''),duration:t.duration||0,size:t.size||'',volume:typeof t.volume==='number'?t.volume:100,owner:uid}));
+        const mkPlaylists=playlists.filter(p=>p.owner===uid).map(p=>({id:p.id,name:p.name,track_ids:p.track_ids||[],owner:uid}));
+        const mkUpacaras=upacaras.filter(u=>u.owner===uid).map(u=>({id:u.id,name:u.name,track_ids:u.track_ids||[],play_once:u.play_once!==false,owner:uid}));
+        const mkSchedules=schedules.filter(x=>x.owner===uid).map(x=>({id:x.id,title:x.title,start_time:x.start_time,end_time:x.end_time,days:x.days||[],source_type:x.source_type,source_id:x.source_id,loop:x.loop??true,volume:typeof x.volume==='number'?x.volume:100,enabled:x.enabled!==false,owner:uid}));
+        if(mkTracks.length)await sb.from('tracks').upsert(mkTracks,{onConflict:'id'});
+        if(mkPlaylists.length)await sb.from('playlists').upsert(mkPlaylists,{onConflict:'id'});
+        if(mkUpacaras.length)await sb.from('upacaras').upsert(mkUpacaras,{onConflict:'id'});
+        if(mkSchedules.length)await sb.from('schedules').upsert(mkSchedules,{onConflict:'id'});
+        // Hapus baris DB milik user yang sudah tidak ada di lokal (sinkron penuh dua arah)
+        const defs=[['tracks',mkTracks],['playlists',mkPlaylists],['upacaras',mkUpacaras],['schedules',mkSchedules]];
+        for(const[table,rows]of defs){
+            const ids=rows.map(r=>r.id);
+            const {data}=await sb.from(table).select('id').eq('owner',uid);
+            const stale=(data||[]).filter(d=>!ids.includes(d.id)).map(d=>d.id);
+            if(stale.length)await sb.from(table).delete().in('id',stale);
+        }
+    }catch(e){console.error('syncAllToSupabase error:',e)}
+}
 
 // ========== SETTINGS ==========
 function saveSettings(){
     settings.timeOffset=parseInt($('timeOffset')?.value)||0;
     if($('latInput')&&$('lngInput')){const la=parseFloat($('latInput').value),ln=parseFloat($('lngInput').value);if(!isNaN(la)&&!isNaN(ln)){settings.lat=la;settings.lng=ln;prayerTimes=calcPrayerTimes(la,ln);renderPrayerGrid();updateCountdown(new Date())}}
-    settings.adzanSubuhVolume=parseInt($('adzanSubuhVol')?.value)||90;
-    settings.adzanUmumVolume=parseInt($('adzanUmumVol')?.value)||80;
-    settings.doaVolume=parseInt($('doaVol')?.value)||70;
+    settings.adzanSubuhVolume=volValue('adsub');
+    settings.adzanUmumVolume=volValue('adumum');
+    settings.doaVolume=volValue('doavol');
     settings.doaEnabled=$('doaEnabled')?.checked||false;
     settings.playAfterAdzan=$('playAfterAdzan')?.checked||false;
     settings.afterAdzanDelay=Math.max(0,parseInt($('afterAdzanDelay')?.value)||0);
     settings.adzanSubuhTrackId=$('adzanSubuhTrack')?.value||null;
     settings.adzanUmumTrackId=$('adzanUmumTrack')?.value||null;
     settings.doaTrackId=$('doaTrack')?.value||null;
-    settings.indoRayaTrackId=$('indoRayaTrack')?.value||null;
-    if($('adzanSubuhVolVal'))$('adzanSubuhVolVal').textContent=settings.adzanSubuhVolume+'%';
-    if($('adzanUmumVolVal'))$('adzanUmumVolVal').textContent=settings.adzanUmumVolume+'%';
-    if($('doaVolVal'))$('doaVolVal').textContent=settings.doaVolume+'%';
     if($('doaEnabledLabel'))$('doaEnabledLabel').textContent=settings.doaEnabled?'Aktif':'Nonaktif';
     if($('playAfterAdzanLabel'))$('playAfterAdzanLabel').textContent=settings.playAfterAdzan?'Aktif':'Nonaktif';
     updateAdzanStatus();
     saveLocal();
 }
-async function saveIndoRayaSetting(){
-    settings.indoRayaTrackId=$('indoRayaTrack')?.value||null;
-    saveLocal();
-    const ok=await saveUserSettingsNow();
-    toast(ok?'Indonesia Raya tersimpan':'Tersimpan lokal (gagal ke database)');
-}
-window.saveIndoRayaSetting=saveIndoRayaSetting;
 // Tombol "Simpan Pengaturan Jadwal Sholat": beri indikator Menyimpan... -> ✓ Tersimpan / Gagal
 async function saveSholatSettings(btn){
     const lbl=btn.querySelector('span');const old='Simpan Pengaturan Jadwal Sholat';
     btn.disabled=true;if(lbl)lbl.textContent='Menyimpan...';
     try{saveSettings()}catch(e){console.error('Save settings error:',e)}
-    const dbOk=await saveUserSettingsNow();
+    const [dbOk, siteOk]=await Promise.all([saveUserSettingsNow(), saveSiteLocationNow()]);
     btn.disabled=false;
     const st=$('sholatSaveStatus');
-    if(dbOk){
+    const allOk=dbOk&&siteOk;
+    if(allOk){
         if(lbl)lbl.textContent='✓ Tersimpan';
         setTimeout(()=>{if(btn.isConnected&&lbl)lbl.textContent=old},2000);
         if(st){st.classList.remove('hidden');st.style.color='#16a34a';st.textContent=(isSupabaseConfigured()?'Tersimpan ke database • ':'Tersimpan di perangkat ini • ')+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-        toast('Pengaturan jadwal sholat tersimpan');
+        toast('Pengaturan jadwal sholat tersimpan — lokasi berlaku untuk semua device');
+    }else if(dbOk){
+        if(lbl)lbl.textContent='✓ Tersimpan (lokasi global gagal)';
+        setTimeout(()=>{if(btn.isConnected&&lbl)lbl.textContent=old},2500);
+        if(st){st.classList.remove('hidden');st.style.color='#d97706';st.textContent='Tersimpan ke akun, tapi lokasi global GAGAL — jalankan sql/site_config.sql di Supabase'}
+        toast('Tersimpan, tapi lokasi global gagal');
     }else{
         if(lbl)lbl.textContent='Gagal simpan';
         btn.style.background='#ef4444';
@@ -271,10 +312,7 @@ function loadSettingsUI(){
     if($('latInput'))$('latInput').value=settings.lat;
     if($('lngInput'))$('lngInput').value=settings.lng;
     if($('timeOffset'))$('timeOffset').value=settings.timeOffset;
-    if($('adzanSubuhVol'))$('adzanSubuhVol').value=settings.adzanSubuhVolume;
-    if($('adzanUmumVol'))$('adzanUmumVol').value=settings.adzanUmumVolume;
-    if($('doaVol'))$('doaVol').value=settings.doaVolume;
-    if($('doaVolVal'))$('doaVolVal').textContent=settings.doaVolume+'%';
+    volSetValue('adsub',settings.adzanSubuhVolume);volSetValue('adumum',settings.adzanUmumVolume);volSetValue('doavol',settings.doaVolume);
     if($('masterVolume'))$('masterVolume').value=settings.volume;
     if($('doaEnabled'))$('doaEnabled').checked=settings.doaEnabled;
     if($('doaEnabledLabel'))$('doaEnabledLabel').textContent=settings.doaEnabled?'Aktif':'Nonaktif';
@@ -285,7 +323,7 @@ function loadSettingsUI(){
     updateShuffleRepeatBtn();
 }
 function populateAdzanSelectors(){
-    const map=[['adzanSubuhTrack',settings.adzanSubuhTrackId],['adzanUmumTrack',settings.adzanUmumTrackId],['doaTrack',settings.doaTrackId],['indoRayaTrack',settings.indoRayaTrackId]];
+    const map=[['adzanSubuhTrack',settings.adzanSubuhTrackId],['adzanUmumTrack',settings.adzanUmumTrackId],['doaTrack',settings.doaTrackId]];
     const ut=getUserTracks();
     for(const[id,sel]of map){const el=$(id);if(!el)continue;el.innerHTML='<option value="">— pilih dari library —</option>'+ut.map(t=>`<option value="${t.id}">${t.name}${t.type==='online'?' (Online)':''}</option>`).join('');if(sel)el.value=sel;}
 }
@@ -341,7 +379,6 @@ function updateClock(){
     checkAutoPlay(now);
     enforceScheduleWindows(now);
     checkPrayerTime(now);
-    checkIndoRaya(now);
     updateCountdown(now);
     // Refresh kartu jadwal aktif di dashboard tiap ~15 detik agar status ikon/waktu terkini
     _dashTick++;if(_dashTick%15===0&&$('page-dashboard')?.classList.contains('active')){
@@ -398,7 +435,7 @@ function updateCountdown(now){
     const cl=$('countdownLabel');if(cl)cl.textContent=`hingga ${nextN} jam ${prayerTimes[nextN]||'--:--'}`;
     const nb=$('nextPrayerBadge');if(nb)nb.textContent=nextN||'--';
 }
-function autoDetectLocation(){if(!navigator.geolocation){toast('Tidak didukung');return}toast('Mendeteksi...');navigator.geolocation.getCurrentPosition(async p=>{settings.lat=p.coords.latitude;settings.lng=p.coords.longitude;saveLocal();if($('latInput'))$('latInput').value=settings.lat;if($('lngInput'))$('lngInput').value=settings.lng;prayerTimes=calcPrayerTimes(settings.lat,settings.lng);renderPrayerGrid();let place=`${settings.lat.toFixed(4)}, ${settings.lng.toFixed(4)}`;try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${settings.lat}&longitude=${settings.lng}&localityLanguage=id`);const d=await r.json();place=d.city||d.locality||d.principalSubdivision||place;if(d.locality&&d.city&&d.city!==d.locality)place=d.locality+', '+d.city;else if(d.city)place=d.city;else if(d.locality)place=d.locality}catch(e){}if($('locationStatus'))$('locationStatus').textContent='Lokasi: '+place;toast('Lokasi terdeteksi: '+place)},e=>toast('Gagal: '+e.message))}
+function autoDetectLocation(){if(!navigator.geolocation){toast('Tidak didukung');return}toast('Mendeteksi...');navigator.geolocation.getCurrentPosition(async p=>{settings.lat=p.coords.latitude;settings.lng=p.coords.longitude;saveLocal();saveSiteLocationNow();if($('latInput'))$('latInput').value=settings.lat;if($('lngInput'))$('lngInput').value=settings.lng;prayerTimes=calcPrayerTimes(settings.lat,settings.lng);renderPrayerGrid();let place=`${settings.lat.toFixed(4)}, ${settings.lng.toFixed(4)}`;try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${settings.lat}&longitude=${settings.lng}&localityLanguage=id`);const d=await r.json();place=d.city||d.locality||d.principalSubdivision||place;if(d.locality&&d.city&&d.city!==d.locality)place=d.locality+', '+d.city;else if(d.city)place=d.city;else if(d.locality)place=d.locality}catch(e){}if($('locationStatus'))$('locationStatus').textContent='Lokasi: '+place;toast('Lokasi terdeteksi: '+place+' — berlaku untuk semua device')},e=>toast('Gagal: '+e.message))}
 window.autoDetectLocation=autoDetectLocation;
 
 // ========== ADZAN ==========
@@ -422,7 +459,7 @@ async function resolveAdzan(kind){
         let t=tracks.find(x=>x.id===id);
         if(!t&&isSupabaseConfigured()){try{t=(await getSupabase().from('tracks').select('*').eq('id',id).single()).data}catch(e){}}
         if(t){
-            if(t.type==='online'&&t.src)return{src:t.src,status:'ok'};
+            if((t.type==='online'||t.type==='gdrive')&&t.src)return{src:t.src,status:'ok'};
             let b=null;try{b=await getBlob(id)}catch(e){}
             return b?{src:URL.createObjectURL(b),status:'ok'}:{src:null,status:'localMissing'};
         }
@@ -430,110 +467,6 @@ async function resolveAdzan(kind){
     return{src:null,status:'none'};
 }
 async function resolveAdzanSrc(kind){return(await resolveAdzan(kind)).src}
-// ========== INDONESIA RAYA (1 MENIT SEBELUM JADWAL) ==========
-// Centang "Indonesia Raya" pada jadwal musik akan:
-//   T-1 menit : SEMUA musik di-JEDA (posisi diingat)
-//   T-1 s.d. mulai : lagu Indonesia Raya diputar dari library
-//   Selesai+1 menit : musik yang terjeda dilanjutkan OTOMATIS
-const getIndoRayaTrackId=()=>settings.indoRayaTrackId;
-async function resolveIndoRaya(){
-    const id=getIndoRayaTrackId();
-    if(!id)return{src:null,status:'none'};
-    let t=tracks.find(x=>x.id===id);
-    if(!t&&isSupabaseConfigured()){try{t=(await getSupabase().from('tracks').select('*').eq('id',id).single()).data}catch(e){}}
-    if(!t)return{src:null,status:'localMissing'};
-    if(t.type==='online'&&t.src)return{src:t.src,status:'ok'};
-    let b=null;try{b=await getBlob(id)}catch(e){}
-    return b?{src:URL.createObjectURL(b),status:'ok'}:{src:null,status:'localMissing'};
-}
-const IR_DONE_KEY='indoRayaDone';
-function isIrDone(id){const d=new Date().toDateString();const m=LS.get(IR_DONE_KEY,null);return!!(m&&m._d===d&&Array.isArray(m.l)&&m.l.includes(id))}
-function markIrDone(id){const d=new Date().toDateString();let m=LS.get(IR_DONE_KEY,null);if(m&&m._d===d&&Array.isArray(m.l)){if(!m.l.includes(id))m.l.push(id)}else m={_d:d,l:[id]};LS.set(IR_DONE_KEY,m)}
-function checkIndoRaya(now){
-    if(isIndoRayaActive)return;
-    const td=now.getDay(),sod=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
-    for(const s of schedules){
-        if(!s.enabled||!s.indonesia_raya||!s.days.includes(td))continue;
-        const startSec=Math.round((scheduleWindow(s).sM)*60);
-        // sudah lewat batas jendela → skip (isIrDone sudah menandai sudah diputar hari ini)
-        if(sod>=startSec+180)continue;
-        // belum memasuki 1 menit sebelum mulai → skip
-        if(sod<startSec-60)continue;
-        // jadwal ini sudah diputar hari ini
-        if(isIrDone(s.id))continue;
-
-        if(sod<startSec){
-            // ===== FASE DIAM: 1 menit sebelum jam mulai, hentikan musik & blokir auto-play =====
-            if(irSetupSched!==s.id){
-                irSetupSched=s.id;
-                if(isPlaying&&!isPrayerTime){
-                    pausedPosition=audio.currentTime;audio.pause();isPlaying=false;updatePlayPauseBtn();
-                }
-                toast('⏸ Musik dijeda 1 menit sebelum '+(s.title||'jadwal Indonesia Raya'));
-            }
-            // blokir auto-play sampai ~5 dtk setelah jam mulai, agar IDR bunyi tepat di jam mulai
-            const d=new Date();d.setHours(0,0,0,0);
-            irBlockUntil=d.getTime()+startSec*1000+5000;
-            return;
-        }
-        // ===== TIBA JAM MULAI → putar Indonesia Raya tepat waktu, musik yg lain dijeda =====
-        triggerIndonesiaRaya(s);
-        return;
-    }
-    // Bersihkan state bila tidak ada lagi jadwal IDR yg diproses
-    if(irSetupSched&&Date.now()>=irBlockUntil){irSetupSched=null;irBlockUntil=0;}
-}
-async function triggerIndonesiaRaya(s){
-    if(isIndoRayaActive)return;
-    isIndoRayaActive=true;updatePlayPauseBtn();
-    try{
-        const r=await resolveIndoRaya();
-        // gagal → buka kunci lagi + cooldown 20 dtk agar bisa dicoba ulang dalam jendela yang sama
-        const fail=msg=>{isIndoRayaActive=false;updatePlayPauseBtn();irCooldownUntil=Date.now()+20000;toast(msg)};
-        if(r.status==='none'){fail('Pilih lagu Indonesia Raya di Pengaturan Adzan & Doa');return}
-        if(!r.src){updateAdzanStatus();fail('File lokal tidak tersedia (Indonesia Raya)');return}
-        const hadPlayback=isPlaying;
-        if(hadPlayback){pausedPosition=audio.currentTime;audio.pause();isPlaying=false}
-        updatePlayPauseBtn();toast('Indonesia Raya');
-        // matikan pemutar IR sebelumnya (anti dobel audio & anti GC)
-        if(irAudio){try{irAudio.onended=irAudio.onerror=null;irAudio.pause()}catch(e){}}
-        if(irAudioUrl&&/^blob:/.test(irAudioUrl)){try{URL.revokeObjectURL(irAudioUrl)}catch(e){}}
-        irAudioUrl=r.src;
-        const a=new Audio(r.src);irAudio=a;
-        a.volume=settings.volume/100;
-        let done=false;
-        const finish=()=>{
-            if(done)return;done=true;irAudio=null;
-            isIndoRayaActive=false;updatePlayPauseBtn();
-            scheduleIrResume(hadPlayback);
-        };
-        a.onended=finish;a.onerror=finish;
-        try{
-            await a.play();
-            markIrDone(s.id);           // tandai selesai HANYA setelah benar-benar mulai bunyi
-            toast('🇮🇩 Indonesia Raya diputar');
-        }catch(err){
-            finish();
-            toast('Gagal memutar Indonesia Raya');
-        }
-    }catch(e){isIndoRayaActive=false;updatePlayPauseBtn()}
-}
-// Lanjut OTOMATIS tepat +60 detik pasca-Indonesia Raya.
-// Bila pada momen itu sedang jam hening sholat, diulang tiap 10 detik (maks 6 menit).
-function scheduleIrResume(hadPlayback){
-    if(irResumeTimer)clearInterval(irResumeTimer);
-    const openAt=Date.now()+60000,deadline=Date.now()+360000;
-    // Blokir auto-play jadwal lain (checkAutoPlay) sampai musik boleh lanjut lagi
-    irBlockUntil=openAt;
-    irResumeTimer=setInterval(()=>{
-        if(Date.now()>deadline||isPlaying){clearInterval(irResumeTimer);irResumeTimer=null;irBlockUntil=0;irSetupSched=null;return}
-        if(Date.now()<openAt)return;
-        if(isPrayerTime||Date.now()<silencedUntil)return;
-        clearInterval(irResumeTimer);irResumeTimer=null;irBlockUntil=0;irSetupSched=null;
-        if(hadPlayback&&currentPlaylist.length>0&&currentPlaylistIndex>=0){resumePlaying();toast('Melanjutkan musik')}
-        else if(!hadPlayback&&autoPlayEnabled&&!isPlaying)checkAutoPlay(new Date());
-    },10000);
-}
 // ========== PENGAMAN BATAS JADWAL ==========
 // Musik milik jadwal yang melewati window-nya dimatikan otomatis:
 //   Loop ON    -> berhenti TEPAT pukul "Jam Selesai"
@@ -541,7 +474,7 @@ function scheduleIrResume(hadPlayback){
 // Playlist yg dimainkan MANUAL oleh pengguna tidak diganggu selama 2 jam
 // sejak sentuhan manual terakhir (manualOverrideUntil).
 function enforceScheduleWindows(now){
-    if(!isPlaying||isIndoRayaActive||!activeScheduleId)return;
+    if(!isPlaying||!activeScheduleId)return;
     if(manualOverrideUntil&&Date.now()<manualOverrideUntil)return;
     const s=schedules.find(x=>x.id===activeScheduleId);
     if(!s)return;
@@ -558,9 +491,9 @@ function enforceScheduleWindows(now){
 
 function updateAdzanStatus(){
     const s=$('adzanStatus');if(!s)return;
-    const rows=[['subuh','Adzan Subuh'],['umum','Adzan Umum'],['doa','Doa'],['ira','Indonesia Raya']];
+    const rows=[['subuh','Adzan Subuh'],['umum','Adzan Umum'],['doa','Doa']];
     s.innerHTML=rows.map(([k,label])=>{
-        const id=k==='ira'?getIndoRayaTrackId():getAdzanTrackId(k);
+        const id=getAdzanTrackId(k);
         if(!id)return '<span style="color:#94a3b8">'+label+': belum dipilih dari library</span>';
         const t=tracks.find(x=>x.id===id);
         if(!t||(t.type!=='online'&&t._localAvailable===false))return '<span style="color:#ef4444">'+label+': '+(t?t.name+' &mdash; ':'')+'file lokal tidak tersedia di perangkat ini</span>';
@@ -826,7 +759,7 @@ function renderTracks(){
                     <div class="player-progress flex-1" onclick="event.stopPropagation();seekTrack(event)" style="height:4px"><div class="player-progress-fill" id="playerProgressFill"></div></div>
                     <div class="flex items-center gap-1">
                         <span class="material-symbols-outlined text-[12px]">volume_up</span>
-                        <input type="range" min="0" max="100" value="${settings.volume}" class="w-16" onclick="event.stopPropagation()" oninput="setMasterVolume(this.value)">
+                        ${volumePairLive('mv_trk',settings.volume,"setMasterVolume(volValue('mv_trk'))")}
                         <button class="w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 ${settings.shuffle?'text-green-600':''}" onclick="event.stopPropagation();toggleShuffle()"><span class="material-symbols-outlined text-[12px]">shuffle</span></button>
                         <button class="w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 ${settings.repeat?'text-green-600':''}" onclick="event.stopPropagation();toggleRepeat()"><span class="material-symbols-outlined text-[12px]">repeat</span></button>
                     </div>
@@ -836,22 +769,60 @@ function renderTracks(){
         const unavailable=t.type==='offline'&&t._localAvailable===false;
         const deletable=canDeleteTrack(t);
         const adminShared=t.type==='gdrive'&&t.owner&&t.owner!==currentUser.id;
+        const typeLabel=t.type==='offline'?'Lokal':t.type==='gdrive'?'GDrive':'Online';
+        const metaParts=[];
+        if(t.duration>0)metaParts.push(formatTime(t.duration));
+        if(t.size)metaParts.push(t.size);
+        metaParts.push(typeLabel);
+        const meta=metaParts.join(' • ');
         if(unavailable){
-            return`<div class="track-item flex items-center gap-2.5 p-2.5 rounded-lg bg-red-50/50 opacity-70">
-            <div class="w-7 h-7 rounded-full flex items-center justify-center bg-gray-200 shrink-0"><span class="material-symbols-outlined text-[14px] text-gray-400">block</span></div>
-            <span class="shrink-0 cursor-default" title="Musik lokal (PC)">${icon}</span>
-            <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-red-400">File lokal tidak tersedia • ${t.size}</p></div>
-            ${deletable?`<button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>`:''}
-        </div>`;
+            return`<div class="track-item flex items-center gap-2.5 p-2.5 rounded-lg bg-red-50/60 border border-red-100">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-200 shrink-0"><span class="material-symbols-outlined text-[16px] text-gray-400">block</span></div>
+                <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-red-400 truncate">${t.size?t.size+' • ':''}File lokal tidak tersedia</p></div>
+                ${deletable?`<button class="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" title="Hapus" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[16px]">delete</span></button>`:''}
+            </div>`;
         }
         return`<div class="track-item flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="playTrack(${gi})">
-            <button class="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878" onclick="event.stopPropagation();playTrack(${gi})"><span class="material-symbols-outlined text-[14px]">play_arrow</span></button>
-            <span class="shrink-0 cursor-default" title="${t.type==='offline'?'Musik lokal (PC)':'Musik online'}">${icon}</span>
-            <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}${adminShared?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:#4285F4;color:#fff">ADMIN</span>':''}</p><p class="text-[11px] text-on-surface-variant">${t.type==='online'?((t.duration>0)?formatTime(t.duration)+' • ':'')+'Online':formatTime(t.duration)+' • '+t.size}</p></div>
-            <div class="flex items-center gap-1.5" onclick="event.stopPropagation()"><input type="range" min="0" max="100" value="${t.volume||100}" class="w-16" onchange="setTrackVol(${gi},this.value)"><span class="text-[10px] w-7">${t.volume||100}%</span></div>
-            ${deletable?`<button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[14px]">delete</span></button>`:''}
+            <button class="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style="background:#50C878" title="Putar" onclick="event.stopPropagation();playTrack(${gi})"><span class="material-symbols-outlined text-[16px]">play_arrow</span></button>
+            <span class="shrink-0 cursor-default" title="${t.type==='offline'?'Musik lokal (PC)':t.type==='gdrive'?'Google Drive':'Musik online'}">${icon}</span>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate">${t.name}${adminShared?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:#4285F4;color:#fff">ADMIN</span>':''}</p>
+                <p class="text-[11px] text-on-surface-variant truncate">${meta}</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0" title="Volume lagu">${volumePair('trk_'+gi,typeof t.volume==='number'?t.volume:100,"setTrackVol("+gi+",volValue('trk_"+gi+"'))")}</div>
+            ${deletable?`<button class="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 text-on-surface-variant" title="Hapus" onclick="event.stopPropagation();removeTrack(${gi})"><span class="material-symbols-outlined text-[16px]">delete</span></button>`:''}
         </div>`;
     }).join('');
+}
+// ---- Kontrol volume: slider + input angka (bisa digeser atau diketik persen) ----
+// volSetValue(key,v): sinkronkan slider+angka+label tanpa memanggil setter (untuk oninput live).
+// volValue(key): baca nilai (clamped 0-100) dari input angka, untuk dipakai setter pada onchange.
+window.volSetValue=function(key,v){
+    let val=Math.max(0,Math.min(100,Math.round(+(v)||0)));
+    const r=document.getElementById(key+'_r'),n=document.getElementById(key+'_n'),l=document.getElementById(key+'_l');
+    if(r&&r.value!=val)r.value=val;
+    if(n&&n.value!=val)n.value=val;
+    if(l)l.textContent=val+'%';
+};
+window.volValue=function(key){const n=document.getElementById(key+'_n');return Math.max(0,Math.min(100,Math.round(+(n?n.value:0)||0)));};
+// volumePair(key,value,changeCode): kembalikan HTML slider + input angka yang saling sinkron.
+//   changeCode: ekspresi JS yang dipanggil saat nilai dikomit (pakai volValue('key') untuk nilai).
+function volumePair(key,value,changeCode){
+    const n=Number.isFinite(+(value))?Math.max(0,Math.min(100,Math.round(+(value)))):100;
+    return `<div class="flex items-center gap-1.5" onclick="event.stopPropagation()" title="Volume">
+        <input type="range" id="${key}_r" min="0" max="100" value="${n}" class="w-16" oninput="volSetValue('${key}',this.value)" onchange="${changeCode}">
+        <input type="number" id="${key}_n" min="0" max="100" value="${n}" class="w-12 text-[10px] px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('${key}',this.value)" onchange="${changeCode}">
+        <span id="${key}_l" class="text-[10px] w-7">${n}%</span>
+    </div>`;
+}
+// volumePairLive: sama, tapi setter juga dipanggil saat digeser/ketik (untuk volume master tanpa re-render).
+function volumePairLive(key,value,changeCode){
+    const n=Number.isFinite(+(value))?Math.max(0,Math.min(100,Math.round(+(value)))):100;
+    return `<div class="flex items-center gap-1.5" onclick="event.stopPropagation()" title="Volume">
+        <input type="range" id="${key}_r" min="0" max="100" value="${n}" class="w-16" oninput="volSetValue('${key}',this.value);${changeCode}" onchange="${changeCode}">
+        <input type="number" id="${key}_n" min="0" max="100" value="${n}" class="w-12 text-[10px] px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('${key}',this.value);${changeCode}" onchange="${changeCode}">
+        <span id="${key}_l" class="text-[10px] w-7">${n}%</span>
+    </div>`;
 }
 function setTrackVol(i,v){tracks[i].volume=parseInt(v);saveLocal();renderTracks();if(currentPlaylist[currentPlaylistIndex]?.id===tracks[i].id)audio.volume=v/100*settings.volume/100}
 window.setTrackVol=setTrackVol;
@@ -871,7 +842,6 @@ async function removeTrack(i){
     if(!canDeleteTrack(t)){toast('Tidak bisa dihapus — lagu ini dibagikan oleh admin');return}
     if(!confirm('Hapus?'))return;
     if(t.type==='offline'){try{await deleteBlob(t.id)}catch(e){}}
-    if(isSupabaseConfigured()){await getSupabase().from('tracks').delete().eq('id',t.id)}
     tracks.splice(i,1);saveLocal();renderTracks();toast('Dihapus');
 }
 window.removeTrack=removeTrack;
@@ -931,7 +901,7 @@ window.setMasterVolume=setMasterVolume;
 audio.ontimeupdate=()=>{if(audio.duration){const pf=$('playerProgressFill');if(pf)pf.style.width=(audio.currentTime/audio.duration*100)+'%';const pc=$('playingTime');if(pc)pc.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const dpf=$('dashPlayerFill');if(dpf)dpf.style.width=(audio.currentTime/audio.duration*100)+'%';    const dpt=$('dashPlayerTime');if(dpt)dpt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const upf=$('upProgressFill');if(upf)upf.style.width=(audio.currentTime/audio.duration*100)+'%';const upt=$('upPlayingTime');if(upt)upt.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);const upn=$('upTrackName');if(upn){const c=currentPlaylist[currentPlaylistIndex];if(c)upn.textContent=c.name}const upi=$('upPlayPauseIcon');if(upi)upi.textContent=isPlaying?'pause':'play_arrow'}const dptr=$('dashPlayerTrack');if(dptr){const cur=currentPlaylist[currentPlaylistIndex];if(cur&&dptr.textContent!==cur.name)dptr.textContent=cur.name}};
 // Lanjutkan otomatis ke lagu berikutnya ketika satu lagu selesai diputar (playlist/jadwal).
 // Khusus pemutaran dari Library (playTrack/playAllTracks): cukup BERHENTI, tidak lanjut ke lagu berikutnya.
-audio.onended=()=>{if(isIndoRayaActive||isPrayerTime)return;if(isLibraryPlaying){isLibraryPlaying=false;audio.currentTime=0;pausedPosition=0;isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;manualOverrideUntil=0;updatePlayPauseBtn();renderTracks();renderUpacaras();return}nextTrack()};
+audio.onended=()=>{if(isPrayerTime)return;if(isLibraryPlaying){isLibraryPlaying=false;audio.currentTime=0;pausedPosition=0;isPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;activeScheduleId=null;manualPauseKey=null;manualOverrideUntil=0;updatePlayPauseBtn();renderTracks();renderUpacaras();return}nextTrack()};
 
 // ========== PLAYLIST ==========
 function openPlaylistModal(id){
@@ -945,9 +915,32 @@ function openPlaylistModal(id){
 window.openPlaylistModal=openPlaylistModal;
 function renderPlaylistPicker(){
     const ut=getUserTracks();const sel=$('playlistTrackSelect');
-    sel.innerHTML=ut.length?ut.map(t=>`<label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs"><input type="checkbox" value="${t.id}" ${editingPlaylistIds.includes(t.id)?'checked':''} onchange="togglePlaylistTrack('${t.id}')"> ${t.name}</label>`).join(''):'<p class="text-xs text-on-surface-variant">Upload lagu dulu</p>';
-    const ord=$('playlistOrderList');
-    if(ord)ord.innerHTML=editingPlaylistIds.length?editingPlaylistIds.map((tid,i)=>{
+    const c=document.createElement('div');c.className='space-y-1';
+    if(!ut.length){c.innerHTML='<p class="text-xs text-on-surface-variant py-1">Upload lagu dulu ke Library</p>'}
+    else ut.forEach(t=>{
+        const unavailable=t.type==='offline'&&t._localAvailable===false;
+        const row=document.createElement('label');
+        row.className='flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs';
+        row.style.cssText='border:1px solid transparent;'+(editingPlaylistIds.includes(t.id)?'border-color:#50C878;background:#eef6f0;':'');
+        const cb=document.createElement('input');
+        cb.type='checkbox';cb.value=t.id;cb.checked=editingPlaylistIds.includes(t.id);
+        cb.className='shrink-0 accent-[#50C878]';
+        cb.addEventListener('change',()=>togglePlaylistTrack(t.id));
+        row.appendChild(cb);
+        const info=document.createElement('span');
+        info.className='flex-1 min-w-0';
+        info.textContent=t.name+(unavailable?' (file lokal tidak tersedia)':'');
+        if(unavailable)info.classList.add('text-red-400');
+        row.appendChild(info);
+        c.appendChild(row);
+    });
+    sel.replaceChildren(c);
+    renderPlaylistOrder();
+}
+window.renderPlaylistPicker=renderPlaylistPicker;
+function renderPlaylistOrder(){
+    const ord=$('playlistOrderList');if(!ord)return;
+    ord.innerHTML=editingPlaylistIds.length?editingPlaylistIds.map((tid,i)=>{
         const t=tracks.find(x=>x.id===tid);if(!t)return'';
         return`<div class="flex items-center gap-1.5 p-1.5 rounded text-xs" style="background:#eef6f0">
             <span class="w-4 text-center text-on-surface-variant font-bold">${i+1}</span>
@@ -958,17 +951,23 @@ function renderPlaylistPicker(){
         </div>`;
     }).join(''):'<p class="text-[11px] text-on-surface-variant py-1">Belum ada lagu dipilih</p>';
 }
-window.renderPlaylistPicker=renderPlaylistPicker;
 function togglePlaylistTrack(id){
     if(editingPlaylistIds.includes(id))editingPlaylistIds=editingPlaylistIds.filter(x=>x!==id);
     else editingPlaylistIds.push(id);
-    renderPlaylistPicker();
+    // Jangan render ulang seluruh daftar — cukup sinkronkan status checkbox & urutan,
+    // agar checkbox tidak hilang/kehilangan fokus saat memilih beberapa lagu.
+    syncPlaylistCheckboxes();
+    renderPlaylistOrder();
 }
 window.togglePlaylistTrack=togglePlaylistTrack;
-function movePlaylistTrack(i,dir){const j=i+dir;if(j<0||j>=editingPlaylistIds.length)return;[editingPlaylistIds[i],editingPlaylistIds[j]]=[editingPlaylistIds[j],editingPlaylistIds[i]];renderPlaylistPicker();}
+function movePlaylistTrack(i,dir){const j=i+dir;if(j<0||j>=editingPlaylistIds.length)return;[editingPlaylistIds[i],editingPlaylistIds[j]]=[editingPlaylistIds[j],editingPlaylistIds[i]];syncPlaylistCheckboxes();renderPlaylistOrder();}
 window.movePlaylistTrack=movePlaylistTrack;
-function removePlaylistTrack(id){editingPlaylistIds=editingPlaylistIds.filter(x=>x!==id);renderPlaylistPicker();}
+function removePlaylistTrack(id){editingPlaylistIds=editingPlaylistIds.filter(x=>x!==id);syncPlaylistCheckboxes();renderPlaylistOrder();}
 window.removePlaylistTrack=removePlaylistTrack;
+function syncPlaylistCheckboxes(){
+    const sel=$('playlistTrackSelect');if(!sel)return;
+    sel.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=editingPlaylistIds.includes(cb.value);const lab=cb.closest('label');if(lab){lab.style.borderColor=cb.checked?'#50C878':'transparent';lab.style.background=cb.checked?'#eef6f0':'';}});
+}
 async function savePlaylist(){
     const name=$('playlistNameInput').value.trim();if(!name){toast('Nama harus diisi');return}
     const ids=[...editingPlaylistIds];
@@ -995,7 +994,7 @@ function renderPlaylists(){
 }
 function playPlaylist(id){const p=playlists.find(p=>p.id===id);if(!p)return;const plTracks=p.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean).filter(x=>x.type==='online'||x._localAvailable!==false);if(!plTracks.length){toast('Kosong / file lokal tidak tersedia');return}isLibraryPlaying=false;stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=null;manualPauseKey=null;activeScheduleVolumePct=100;manualOverrideUntil=Date.now()+7200000;currentPlaylist=settings.shuffle?[...plTracks].sort(()=>Math.random()-.5):[...plTracks];currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+p.name)}
 window.playPlaylist=playPlaylist;
-async function removePlaylist(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('playlists').delete().eq('id',id);playlists=playlists.filter(p=>p.id!==id);saveLocal();renderPlaylists();toast('Dihapus')}
+async function removePlaylist(id){if(!confirm('Hapus?'))return;playlists=playlists.filter(p=>p.id!==id);saveLocal();renderPlaylists();toast('Dihapus')}
 window.removePlaylist=removePlaylist;
 
 // ========== UPACARA ==========
@@ -1081,11 +1080,11 @@ function renderUpacaras(){
         const list=u.track_ids.map(id=>tracks.find(t=>t.id===id)).filter(Boolean);
         const songs=list.length?list.map((t,idx)=>{
             const playingThis=isPlaying&&currentPlaylist.length&&currentPlaylist[currentPlaylistIndex]?.id===t.id&&stopAfterPlaylist;
-            const vol=t.volume||100;
+            const vol=typeof t.volume==='number'?t.volume:100;
             return`<div class="flex items-center gap-2 p-2 rounded-lg" style="background:#eef6f0">
                 <button class="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0" style="background:#50C878" onclick="toggleUpacaraSong('${u.id}','${t.id}')"><span class="material-symbols-outlined text-[16px]">${playingThis?'pause':'play_arrow'}</span></button>
                 <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${t.name}</p><p class="text-[11px] text-on-surface-variant">${t.type==='online'?'Online':formatTime(t.duration)}</p></div>
-                <div class="flex items-center gap-1" onclick="event.stopPropagation()"><input type="range" min="0" max="100" value="${vol}" class="w-16" onchange="setTrackVolById('${t.id}',this.value)"><span class="text-[10px] w-7">${vol}%</span></div>
+                ${volumePair('up_'+t.id,vol,"setTrackVolById('"+t.id+"',volValue('up_"+t.id+"'))")}
                 <div class="flex items-center gap-0.5">
                     <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();moveUpacaraSong('${u.id}','${t.id}',-1)" ${idx===0?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_upward</span></button>
                     <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-200" onclick="event.stopPropagation();moveUpacaraSong('${u.id}','${t.id}',1)" ${idx===list.length-1?'disabled':''}><span class="material-symbols-outlined text-[14px]">arrow_downward</span></button>
@@ -1110,7 +1109,7 @@ function renderUpacaras(){
                     <div class="player-progress flex-1" onclick="event.stopPropagation();seekTrack(event)" style="height:4px"><div class="player-progress-fill" id="upProgressFill" style="width:${cur.duration>0?(audio.currentTime/cur.duration*100):0}%"></div></div>
                     <div class="flex items-center gap-1">
                         <span class="material-symbols-outlined text-[12px] text-on-surface-variant">volume_up</span>
-                        <input type="range" min="0" max="100" value="${settings.volume}" class="w-16" onclick="event.stopPropagation()" oninput="setMasterVolume(this.value)">
+                        ${volumePairLive('mv_up',settings.volume,"setMasterVolume(volValue('mv_up'))")}
                     </div>
                 </div>
             </div>`:'';
@@ -1145,7 +1144,7 @@ function renderUpacaras(){
     }).join('');
 }
 window.renderUpacaras=renderUpacaras;
-async function removeUpacara(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('upacaras').delete().eq('id',id);upacaras=upacaras.filter(u=>u.id!==id);if(activeUpacaraId===id)activeUpacaraId=null;saveLocal();renderUpacaras();toast('Dihapus')}
+async function removeUpacara(id){if(!confirm('Hapus?'))return;upacaras=upacaras.filter(u=>u.id!==id);if(activeUpacaraId===id)activeUpacaraId=null;saveLocal();renderUpacaras();toast('Dihapus')}
 window.removeUpacara=removeUpacara;
 
 // ========== SCHEDULES ==========
@@ -1157,10 +1156,8 @@ function openScheduleModal(id){
     $('scheduleStart').value=s?.start_time||'08:00';
     $('scheduleEnd').value=s?.end_time||'17:00';
     $('scheduleLoop').checked=s?.loop??true;
-    $('scheduleIndoRaya').checked=s?.indonesia_raya??false;
     const svol=typeof s?.volume==='number'?s.volume:100;
-    if($('scheduleVolume'))$('scheduleVolume').value=svol;
-    if($('scheduleVolumeVal'))$('scheduleVolumeVal').textContent=svol+'%';
+    volSetValue('schedModal',svol);
     $('scheduleSourceType').value=s?.source_type||'single';
     updateScheduleSourceUI();
     updateScheduleLoopUI();
@@ -1233,7 +1230,7 @@ async function saveSchedule(){
         const eh2=Math.floor(total/60)%24,em2=total%60;
         endT=`${String(eh2).padStart(2,'0')}:${String(em2).padStart(2,'0')}`;
     }
-    const data={title,start_time:startT,end_time:endT,days,source_type:type,source_id:sid,loop,indonesia_raya:$('scheduleIndoRaya').checked,volume:Math.max(0,parseInt($('scheduleVolume')?.value)||100),enabled:true,owner:currentUser.id};
+    const data={title,start_time:startT,end_time:endT,days,source_type:type,source_id:sid,loop,volume:volValue('schedModal'),enabled:true,owner:currentUser.id};
     if(editingId){
         if(isSupabaseConfigured())await getSupabase().from('schedules').update(data).eq('id',editingId);
         const s=schedules.find(s=>s.id===editingId);if(s)Object.assign(s,data);
@@ -1262,12 +1259,16 @@ function renderSchedules(){
         if(s.source_type==='single')sourceName=tracks.find(t=>t.id===s.source_id)?.name||'?';
         else if(s.source_type==='playlist')sourceName=playlists.find(p=>p.id===s.source_id)?.name||'?';
         else if(s.source_type==='upacara')sourceName=upacaras.find(u=>u.id===s.source_id)?.name||'? (upacara)';
-        return`<div class="glass-card rounded-xl p-4"><div class="flex justify-between items-center mb-1.5"><h4 class="text-sm font-bold">${s.title}</h4><div class="flex gap-1.5 items-center">${s.indonesia_raya?'<span class="text-[9px] px-1.5 py-0.5 rounded badge-indo font-bold">🇮🇩 RAYA</span>':''}<span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${sc}">${st}</span></div></div><p class="text-[11px] text-on-surface-variant">${s.start_time}${s.loop===false?' • berhenti saat musik selesai':' - '+s.end_time} • ${s.loop?'Loop':'1x'} • ${sourceName}</p><div class="flex gap-0.5 my-1.5">${[0,1,2,3,4,5,6].map(d=>`<span class="text-[9px] px-1 py-0.5 rounded ${s.days.includes(d)?'bg-black text-white':'bg-gray-100 text-on-surface-variant'}">${DAY_NAMES[d]}</span>`).join('')}</div><div class="flex gap-1.5 items-center"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" ${s.enabled?'checked':''} class="sr-only peer" onchange="toggleSchedule('${s.id}',this.checked)"><div class="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div></label><button class="text-[11px] px-2 py-0.5 rounded border border-outline-variant" onclick="openScheduleModal('${s.id}')">Edit</button><button class="text-[11px] px-2 py-0.5 rounded border border-red-300 text-red-500" onclick="removeSchedule('${s.id}')">Hapus</button></div></div>`;
+        const vol = typeof s.volume==='number'?s.volume:100;
+        const durSec = computeSourceDuration(s.source_type,s.source_id);
+        const durStr = durSec>0 ? formatTime(durSec) : '—';
+        const winDur = (()=>{ if(s.loop===false) return durStr; const[sh,sm]=s.start_time.split(':').map(Number); const[eh,em]=s.end_time.split(':').map(Number); const m=(eh*60+em)-(sh*60+sm); return m>0?`${Math.floor(m/60)}j ${m%60}m`:`${m}m`; })();
+        return`<div class="glass-card rounded-xl p-4"><div class="flex justify-between items-start gap-3"><div class="min-w-0 flex-1"><h4 class="text-sm font-bold truncate">${s.title}</h4><p class="text-[11px] text-on-surface-variant truncate">${s.start_time}${s.loop===false?' • berhenti saat musik selesai':' - '+s.end_time} • ${s.loop?'Loop':'1x'} • ${sourceName}</p></div><span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${sc} shrink-0">${st}</span></div><div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-gray-900 text-white font-bold shrink-0"><span class="material-symbols-outlined text-[12px]">volume_up</span> ${vol}%</span><span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-on-surface-variant font-bold shrink-0"><span class="material-symbols-outlined text-[12px]">schedule</span> ${durStr} • ${winDur}</span><span class="inline-flex gap-0.5 flex-wrap">${[0,1,2,3,4,5,6].map(d=>`<span class="text-[9px] px-1 py-0.5 rounded ${s.days.includes(d)?'bg-black text-white':'bg-gray-100 text-on-surface-variant'}">${DAY_NAMES[d]}</span>`).join('')}</span></div><div class="flex gap-1.5 items-center mt-2.5"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" ${s.enabled?'checked':''} class="sr-only peer" onchange="toggleSchedule('${s.id}',this.checked)"><div class="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div></label><button class="text-[11px] px-2 py-0.5 rounded border border-outline-variant" onclick="openScheduleModal('${s.id}')">Edit</button><button class="text-[11px] px-2 py-0.5 rounded border border-red-300 text-red-500" onclick="removeSchedule('${s.id}')">Hapus</button></div></div>`;
     }).join('');
 }
 function toggleSchedule(id,en){const s=schedules.find(s=>s.id===id);if(s){s.enabled=en;saveLocal();renderSchedules();renderDashboard()}}
 window.toggleSchedule=toggleSchedule;
-async function removeSchedule(id){if(!confirm('Hapus?'))return;if(isSupabaseConfigured())await getSupabase().from('schedules').delete().eq('id',id);schedules=schedules.filter(s=>s.id!==id);saveLocal();renderSchedules();toast('Dihapus')}
+async function removeSchedule(id){if(!confirm('Hapus?'))return;schedules=schedules.filter(s=>s.id!==id);saveLocal();renderSchedules();toast('Dihapus')}
 window.removeSchedule=removeSchedule;
 
 // ========== AUTO PLAY ==========
@@ -1285,7 +1286,7 @@ const schedPauseKey=s=>new Date().toDateString()+'|'+(s?.id||'-');
 function checkAutoPlay(now){
     // Boot silent (auto-refresh tengah malam): jangan auto-putar musik beberapa detik agar refresh tidak membunyikan apa pun
     if(_bootSilent&&Date.now()-_bootTime<30000)return;
-    if(!autoPlayEnabled||isPrayerTime||Date.now()<silencedUntil||isIndoRayaActive||Date.now()<irBlockUntil)return;
+    if(!autoPlayEnabled||isPrayerTime||Date.now()<silencedUntil)return;
     const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();
     for(const s of schedules){
         if(!s.enabled||!s.days.includes(td))continue;
@@ -1385,7 +1386,7 @@ async function removeUser(userId){
 window.removeUser=removeUser;
 
 // ========== CLEAR ==========
-function clearAllData(){if(!confirm('Hapus SEMUA data?'))return;tracks=[];playlists=[];upacaras=[];schedules=[];saveLocal();audio.pause();isPlaying=false;currentPlaylist=[];renderTracks();renderPlaylists();renderUpacaras();renderSchedules();renderDashboard();toast('Semua data dihapus')}
+async function clearAllData(){if(!confirm('Hapus SEMUA data?'))return;tracks=[];playlists=[];upacaras=[];schedules=[];saveLocal();if(isSupabaseConfigured()){try{const sb=getSupabase();await sb.from('tracks').delete();await sb.from('playlists').delete();await sb.from('upacaras').delete();await sb.from('schedules').delete();}catch(e){toast('DB gagal dihapus: '+(e.message||''))}}audio.pause();isPlaying=false;currentPlaylist=[];renderTracks();renderPlaylists();renderUpacaras();renderSchedules();renderDashboard();toast('Semua data dihapus')}
 window.clearAllData=clearAllData;
 
 function nextScheduleStartMin(s,now=new Date()){const nm=now.getHours()*60+now.getMinutes(),td=now.getDay();for(let d=0;d<7;d++){const cd=(td+d)%7;if(s.days.includes(cd)){const[sh,sm]=s.start_time.split(':').map(Number);const startMin=sh*60+sm;if(d===0){if(startMin>nm)return startMin-nm}else return(24*60-nm)+(d-1)*24*60+startMin}}return Infinity}
@@ -1450,7 +1451,7 @@ function renderDashboard(){
             const pct=(ct&&audio.duration)?(audio.currentTime/audio.duration*100):0;
             mini=`<div class="mt-3"><div class="flex justify-between items-center gap-2 mb-1.5"><span class="text-[10px] font-medium text-on-surface truncate" id="dashPlayerTrack">${ct?ct.name:''}</span><span class="text-[10px] text-on-surface-variant shrink-0 tabular-nums" id="dashPlayerTime">${formatTime(audio.currentTime||0)} / ${formatTime(audio.duration||0)}</span></div><div class="player-progress" style="height:5px" onclick="event.stopPropagation();seekDash(event)"><div class="player-progress-fill" id="dashPlayerFill" style="width:${pct.toFixed(1)}%"></div></div></div>`;
         }
-        return`<div class="group rounded-lg border transition-colors p-4 ${playing?'border-green-400 bg-green-50/40':'bg-white border-outline-variant hover:border-black'}"><div class="flex items-center justify-between gap-3"><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-on-surface-variant group-hover:text-black transition-colors shrink-0"><span class="material-symbols-outlined">music_note</span></div><div class="min-w-0"><p class="font-bold text-sm text-on-surface truncate">${s.title}${s.loop?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-900 text-white align-middle">LOOP</span>':' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-on-surface-variant align-middle">1X</span>'}${s.indonesia_raya?' <span class="badge-indo text-[9px] font-bold px-1 py-0.5 rounded align-middle">INDONESIA RAYA</span>':''}</p><p class="text-[11px] text-on-surface-variant truncate mt-0.5">${srcLabel(s)}</p></div></div><div class="flex items-center gap-3 shrink-0"><button onclick="toggleSchedulePlay('${s.id}')" title="${playing?'Jeda':'Putar'}" class="w-9 h-9 rounded-full text-white flex items-center justify-center hover:scale-105 transition-transform" style="background:#50C878"><span class="material-symbols-outlined text-sm" data-sched-icon="${s.id}">${playing?'pause':'play_arrow'}</span></button><div class="text-right leading-tight"><p class="font-bold text-sm text-on-surface">${s.start_time}</p><p class="text-[10px] text-on-surface-variant whitespace-nowrap">${s.loop!==false?('s.d. '+s.end_time):'musik selesai'}</p></div></div></div>${mini}<div class="${mini?'mt-2.5':'mt-3'} flex items-center gap-2"><span class="material-symbols-outlined text-[15px] text-on-surface-variant">${vIcon}</span><input type="range" min="0" max="100" value="${vol}" class="flex-1" onchange="setScheduleVolume('${s.id}',this.value)" oninput="this.nextElementSibling.textContent=this.value+'%'" onclick="event.stopPropagation()"><span class="text-[10px] w-8 text-right font-bold text-on-surface-variant shrink-0">${vol}%</span></div></div>`;
+        return`<div class="group rounded-lg border transition-colors p-4 ${playing?'border-green-400 bg-green-50/40':'bg-white border-outline-variant hover:border-black'}"><div class="flex items-center justify-between gap-3"><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-on-surface-variant group-hover:text-black transition-colors shrink-0"><span class="material-symbols-outlined">music_note</span></div><div class="min-w-0"><p class="font-bold text-sm text-on-surface truncate">${s.title}${s.loop?' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-900 text-white align-middle">LOOP</span>':' <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-on-surface-variant align-middle">1X</span>'}</p><p class="text-[11px] text-on-surface-variant truncate mt-0.5">${srcLabel(s)}</p></div></div><div class="flex items-center gap-3 shrink-0"><button onclick="toggleSchedulePlay('${s.id}')" title="${playing?'Jeda':'Putar'}" class="w-9 h-9 rounded-full text-white flex items-center justify-center hover:scale-105 transition-transform" style="background:#50C878"><span class="material-symbols-outlined text-sm" data-sched-icon="${s.id}">${playing?'pause':'play_arrow'}</span></button><div class="text-right leading-tight"><p class="font-bold text-sm text-on-surface">${s.start_time}</p><p class="text-[10px] text-on-surface-variant whitespace-nowrap">${s.loop!==false?('s.d. '+s.end_time):'musik selesai'}</p></div></div></div>${mini}<div class="${mini?'mt-2.5':'mt-3'} flex items-center gap-2"><span class="material-symbols-outlined text-[15px] text-on-surface-variant">${vIcon}</span>${volumePair('sched_'+s.id,vol,"setScheduleVolume('"+s.id+"',volValue('sched_"+s.id+"'))")}</div></div>`;
     }).join('');}
     // Next 2 upcoming schedules
     const upcoming=schedules.filter(s=>s.enabled&&!isActive(s)).map(s=>({s,min:nextScheduleStartMin(s,now)})).filter(x=>x.min>0&&x.min<Infinity).sort((a,b)=>a.min-b.min).slice(0,2);
@@ -1470,6 +1471,7 @@ function playScheduleNow(id){
     sourceTracks=sourceTracks.filter(x=>x.type==='online'||x._localAvailable!==false);
     if(!sourceTracks.length){toast('File lokal tidak tersedia / daftar kosong');return}
     stopAfterPlaylist=false;loopPlaylist=false;stopAfterCurrentSong=false;activeScheduleId=id;manualPauseKey=null;activeScheduleVolumePct=(typeof s.volume==='number'?s.volume:100);
+    isLibraryPlaying=false;
     manualOverrideUntil=Date.now()+7200000;
     currentPlaylist=settings.shuffle?[...sourceTracks].sort(()=>Math.random()-.5):[...sourceTracks];
     currentPlaylistIndex=0;loadAndPlay();toast('Putar: '+s.title);
@@ -1529,6 +1531,30 @@ try{
         try{localStorage.setItem('mp_silentReload',String(Date.now()))}catch(e){}
         location.reload();
     },Math.max(next.getTime()-now.getTime(),1000));
+})();
+// Auto-refresh setiap 3 jam hanya pada jendela 17:00–03:00 WIB (17:00, 20:00, 23:00, 02:00)
+(function scheduleWindowedRefresh(){
+    function nextWindowed(now){
+        const cand=[];
+        for(let d=-1;d<3;d++){
+            const base=new Date(now.getFullYear(),now.getMonth(),now.getDate()+d,0,0,1,0);
+            cand.push(new Date(base.getFullYear(),base.getMonth(),base.getDate(),2,0,1,0));
+            cand.push(new Date(base.getFullYear(),base.getMonth(),base.getDate(),17,0,1,0));
+            cand.push(new Date(base.getFullYear(),base.getMonth(),base.getDate(),20,0,1,0));
+            cand.push(new Date(base.getFullYear(),base.getMonth(),base.getDate(),23,0,1,0));
+        }
+        cand.sort((a,b)=>a-b);
+        for(const c of cand) if(c.getTime()>now.getTime()) return c;
+        return null;
+    }
+    const now=new Date();
+    const nxt=nextWindowed(now);
+    if(!nxt) return;
+    const delay=Math.max(nxt.getTime()-now.getTime(),1000);
+    setTimeout(()=>{
+        try{localStorage.setItem('mp_silentReload',String(Date.now()))}catch(e){}
+        location.reload();
+    }, delay);
 })();
 setInterval(updateClock,1000);updateClock();
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('active')}));

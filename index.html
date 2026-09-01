@@ -77,7 +77,7 @@
     </ul>
     <div class="px-3 mt-auto space-y-2">
         <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant hover:bg-gray-50 rounded-lg transition-all text-sm" onclick="logout()"><span class="material-symbols-outlined text-[20px]">logout</span>Logout</a>
-        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.4</p>
+        <p class="text-center text-[10px] text-on-surface-variant opacity-50">© 2026 by deni s · v3.5</p>
     </div>
 </nav>
 
@@ -287,11 +287,6 @@
                 <div><p class="text-sm font-bold">Putar Otomatis</p><p class="text-[11px] text-on-surface-variant">Jadwal musik mulai sendiri saat masuk jam terjadwal &mdash; matikan jika hanya ingin memutar manual dari Dashboard</p></div>
                 <label class="shrink-0 relative inline-flex items-center cursor-pointer"><input type="checkbox" id="autoPlayToggle" class="sr-only peer" onchange="toggleAutoPlay()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label>
             </div>
-            <div class="glass-card rounded-xl p-3 mb-3">
-                <label class="text-xs text-on-surface-variant">Lagu Indonesia Raya (opsional &mdash; dipakai oleh jadwal musik yang mencentang <b>Indonesia Raya</b>)</label>
-                <div class="flex items-center gap-3 flex-wrap mt-1.5"><span class="text-xs w-24 font-bold">Indonesia Raya</span><select id="indoRayaTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveIndoRayaSetting()"><option value="">— pilih dari library —</option></select></div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5 pl-[104px]">Musik otomatis berjalan 1 menit sebelum jadwal bercentang <b>Indonesia Raya</b> dapat dijeda, lagu <b>Indonesia Raya</b> diputar tepat pada jam jadwal, lalu musik dilanjutkan 1 menit setelah selesai.</p>
-            </div>
             <div id="scheduleList" class="space-y-3"></div>
         </div>
 
@@ -322,17 +317,17 @@
                     <div class="space-y-3">
                         <div>
                             <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Subuh</span><select id="adzanSubuhTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
-                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="90" id="adzanSubuhVol" class="flex-1" oninput="document.getElementById('adzanSubuhVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="adzanSubuhVolVal">90%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('subuh')">Test</button></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="90" id="adsub_r" class="flex-1" oninput="volSetValue('adsub',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="90" id="adsub_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adsub',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adsub_l">90%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('subuh')">Test</button></div>
                         </div>
                         <div>
                             <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Adzan Umum</span><select id="adzanUmumTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
-                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="80" id="adzanUmumVol" class="flex-1" oninput="document.getElementById('adzanUmumVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="adzanUmumVolVal">80%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('umum')">Test</button></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><input type="range" min="0" max="100" value="80" id="adumum_r" class="flex-1" oninput="volSetValue('adumum',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="80" id="adumum_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('adumum',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="adumum_l">80%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('umum')">Test</button></div>
                         </div>
                         <div class="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50"><span class="text-xs w-24 font-bold">Doa Setelah</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="doaEnabled" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label></div>
                         <div class="flex items-center gap-3 p-2.5 rounded-lg bg-[#eef6f0] flex-wrap"><span class="text-xs w-24 font-bold">Musik Setelah Adzan</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="playAfterAdzan" class="sr-only peer" onchange="saveSettings()"><div class="w-14 h-6 bg-gray-300 rounded-full peer-checked:bg-[#50C878] transition-colors after:content-['OFF'] after:flex after:items-center after:justify-center after:absolute after:top-[3px] after:left-[3px] after:w-7 after:h-[18px] after:bg-white after:rounded-full after:shadow-sm after:text-[9px] after:font-bold after:text-gray-400 after:transition-all after:duration-200 peer-checked:after:translate-x-[22px] peer-checked:after:content-['ON'] peer-checked:after:text-[#2f8f55]"></div></label><span class="text-xs ml-1">Delay</span><input type="number" min="0" max="60" value="10" id="afterAdzanDelay" class="w-14 px-2 py-1 text-xs border border-outline-variant rounded" onchange="saveSettings()"><span class="text-xs">menit</span></div>
                         <div>
                             <div class="flex items-center gap-3 flex-wrap mb-1"><span class="text-xs w-24 font-bold">Audio Doa</span><select id="doaTrack" class="flex-1 text-xs px-2 py-1 border border-outline-variant rounded" onchange="saveSettings()"><option value="">— pilih dari library —</option></select></div>
-                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><span class="text-xs font-bold">Volume</span><input type="range" min="0" max="100" value="70" id="doaVol" class="flex-1" oninput="document.getElementById('doaVolVal').textContent=this.value+'%'" onchange="saveSettings()"><span class="text-xs w-8" id="doaVolVal">70%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('doa')">Test</button></div>
+                            <div class="flex items-center gap-3 flex-wrap pl-[104px]"><span class="text-xs font-bold">Volume</span><input type="range" min="0" max="100" value="70" id="doavol_r" class="flex-1" oninput="volSetValue('doavol',this.value)" onchange="saveSettings()"><input type="number" min="0" max="100" value="70" id="doavol_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('doavol',this.value)" onchange="saveSettings()"><span class="text-xs w-8" id="doavol_l">70%</span><button class="text-[11px] px-2 py-1 border border-outline-variant rounded" onclick="previewAdzan('doa')">Test</button></div>
                         </div>
                     </div>
                     <p class="text-[11px] text-on-surface-variant mt-3" id="adzanStatus"></p>
@@ -408,8 +403,9 @@
             <label class="text-xs font-semibold text-on-surface-variant">Volume Jadwal</label>
             <div class="flex items-center gap-2 mt-1.5">
                 <span class="material-symbols-outlined text-[16px] text-on-surface-variant">volume_up</span>
-                <input type="range" min="0" max="100" value="100" id="scheduleVolume" class="flex-1" oninput="document.getElementById('scheduleVolumeVal').textContent=this.value+'%'">
-                <span class="text-xs w-9 text-right font-bold" id="scheduleVolumeVal">100%</span>
+                <input type="range" min="0" max="100" value="100" id="schedModal_r" class="flex-1" oninput="volSetValue('schedModal',this.value)">
+                <input type="number" min="0" max="100" value="100" id="schedModal_n" class="w-12 text-xs px-1 py-0.5 border border-outline-variant rounded text-center" oninput="volSetValue('schedModal',this.value)">
+                <span class="text-xs w-9 text-right font-bold" id="schedModal_l">100%</span>
             </div>
             <p class="text-[10px] text-on-surface-variant mt-0.5">Dipakai saat jadwal ini diputar otomatis maupun manual dari Dashboard.</p>
         </div>
@@ -417,7 +413,6 @@
             <label class="text-xs font-semibold text-on-surface-variant">Opsi</label>
             <div class="flex flex-wrap gap-2 mt-2">
                 <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant cursor-pointer text-xs"><input type="checkbox" id="scheduleLoop" checked onchange="updateScheduleLoopUI()"> Loop</label>
-                <label class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant cursor-pointer text-xs"><input type="checkbox" id="scheduleIndoRaya"> Indonesia Raya (1 mnt sebelum)</label>
             </div>
         </div>
         <div class="border-t border-outline-variant pt-3">
